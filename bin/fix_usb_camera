@@ -1,0 +1,5 @@
+#!/bin/bash
+# run me with sudo!
+
+killall VDCAssistant
+killall AppleCameraAssistant

@@ -1,0 +1,127 @@
+" Vundle (vim bundle)
+" Use Vim settings, rather then Vi settings (much better!).
+" This must be first, because it changes other options as a side effect.
+set nocompatible
+" Vundle cont'd (https://github.com/VundleVim/Vundle.vim)
+filetype off
+set rtp+=~/.vim/bundle/Vundle.vim
+call vundle#begin()
+
+" Let Vundle manage Vundle
+Plugin 'gmarik/Vundle.vim'
+
+" general
+Plugin 'Valloric/YouCompleteMe'
+Plugin 'Lokaltog/vim-powerline'
+Bundle 'scrooloose/syntastic'
+Plugin 'kien/ctrlp.vim'
+Plugin 'rking/ag.vim'
+" file browser
+Plugin 'tpope/vim-vinegar'
+" git
+Plugin 'tpope/vim-fugitive'
+" rails / rb
+Plugin 'tpope/vim-rails'
+" coffeescript
+Plugin 'kchmck/vim-coffee-script'
+" typescript
+Plugin 'Quramy/tsuquyomi'
+Plugin 'Shougo/vimproc.vim'
+Plugin 'leafgarland/typescript-vim'
+Plugin 'Quramy/vim-js-pretty-template'
+Plugin 'jason0x43/vim-js-indent'
+" colors
+Plugin 'dracula/vim'
+
+call vundle#end()
+
+" When started as "evim", evim.vim will already have done these settings.
+if v:progname =~? "evim"
+  finish
+endif
+
+" Disable automatic newlines
+set fileformats+=dos
+
+" allow backspacing over everything in insert mode
+set backspace=indent,eol,start
+
+set nobackup    " do not keep a backup file, use versions instead
+set history=50    " keep 50 lines of command line history
+set ruler    " show the cursor position all the time
+set showcmd    " display incomplete commands
+set expandtab
+set shiftwidth=2
+set tabstop=2
+set ignorecase
+set smartcase
+set hlsearch
+set dir=~/.vim/tmp
+set wildmode=longest
+
+" Don't use Ex mode, use Q for formatting
+map Q gq
+
+" This is an alternative that also works in block mode, but the deleted
+" text is lost and it only works for putting the current register.
+"vnoremap p "_dp
+
+" Switch syntax highlighting on, when the terminal has colors
+" Also switch on highlighting the last used search pattern.
+if &t_Co > 2 || has("gui_running")
+  syntax enable
+endif
+
+" Searching
+let g:ctrlp_user_command = ['.git/', 'git --git-dir=%s/.git ls-files -oc --exclude-standard']
+
+colorscheme dracula
+
+if has("gui_running")
+  set lines=40 columns=160
+  set guifont=Inconsolata-g:h14.00
+  set transparency=0
+  set toolbar=icons,text
+  set guioptions-=T
+endif
+
+" Setup for multibyte
+if has("multi_byte")
+  set fileencodings=ucs-bom,utf-8
+endif
+
+" Only do this part when compiled with support for autocommands.
+if has("autocmd")
+
+  " Spell check https://robots.thoughtbot.com/vim-spell-checking
+  autocmd BufRead,BufNewFile *.md setlocal spell
+  autocmd BufRead,BufNewFile *.markdown* setlocal spell
+
+  " Enable file type detection.
+  " Use the default filetype settings, so that mail gets 'tw' set to 72,
+  " 'cindent' is on in C files, etc.
+  " Also load indent files, to automatically do language-dependent indenting.
+  filetype plugin indent on
+
+  " Put these in an autocmd group, so that we can delete them easily.
+  augroup vimrcEx
+  au!
+
+  " For all text files set 'textwidth' to 78 characters.
+  autocmd FileType text setlocal textwidth=78
+
+  " When editing a file, always jump to the last known cursor position.
+  " Don't do it when the position is invalid or when inside an event handler
+  " (happens when dropping a file on gvim).
+  autocmd BufReadPost *
+    \ if line("'\"") > 0 && line("'\"") <= line("$") |
+    \   exe "normal g`\"" |
+    \ endif
+
+  augroup END
+
+else
+
+  set autoindent    " always set autoindenting on
+
+endif " has("autocmd")

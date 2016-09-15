@@ -1,0 +1,88 @@
+USERNAME=$(whoami)
+THISDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+for file in $(THISDIR)/../private/*.zsh; do
+  source "$file"
+done
+
+# android
+export JAVA_HOME=$(/usr/libexec/java_home)
+export ANDROID_HOME=/usr/local/opt/android-sdk
+export ANDROID_NDK_HOME=/usr/local/Cellar/android-ndk/r10e
+export NDK_PATH=$ANDROID_NDK_HOME
+export PATH="$PATH:$NDK_PATH"
+
+# qemu
+#  doesnt work for some reason:
+#export PATH="$PATH:'/Applications/GNU ARM Eclipse/QEMU/$(ls /Applications/GNU\ ARM\ Eclipse/QEMU/|tail -n1)/bin'"
+
+# cuda
+# brew cask install cuda
+#export PATH=$PATH:/usr/local/cuda/bin/
+
+# sonar
+export PATH="$PATH:$HOME/src/sequoia/sonar/sonar-spark/bin"
+
+# batali
+source ~/.aws_keys
+
+# homebrew-cask
+export HOMEBREW_CASK_OPTS="--appdir=/Applications --caskroom=/usr/local/Caskroom"
+
+# oh-my-zsh
+plugins=(rails git ruby osx rake brew adb vagrant)
+export ZSH=$HOME/.dotfiles/zsh/oh-my-zsh
+source $ZSH/oh-my-zsh.sh
+
+# shortcut to this dotfiles path is $ZSH
+export ZSH=$HOME/.dotfiles
+
+# your project folder that we can `c [tab]` to
+export PROJECTS=~/src
+
+# use .localrc for SUPER SECRET CRAP that you don't
+# want in your public, versioned repo.
+if [[ -a ~/.localrc ]]
+then
+  source ~/.localrc
+fi
+
+# all of our zsh files
+typeset -U config_files
+config_files=($ZSH/**/*.zsh)
+
+# load the path files
+for file in ${(M)config_files:#*/path.zsh}
+do
+  source $file
+done
+
+# load everything but the path and completion files and oh-my-zsh
+for file in ${${config_files:#*/path.zsh}:#*/completion.zsh}
+do
+  if [[ "$file" == */oh-my-zsh/* ]]; then
+    continue
+  fi
+  source $file
+done
+
+# initialize autocomplete here, otherwise functions won't be loaded
+autoload -U compinit
+compinit
+
+# load every completion after autocomplete loads
+for file in ${(M)config_files:#*/completion.zsh}
+do
+  source $file
+done
+
+unset config_files
+
+### Added by the Heroku Toolbelt
+export PATH="/usr/local/heroku/bin:$PATH"
+
+PERL_MB_OPT="--install_base \"/Volumes/data/home/$USERNAME/perl5\""; export PERL_MB_OPT;
+PERL_MM_OPT="INSTALL_BASE=/Volumes/data/home/$USERNAME/perl5"; export PERL_MM_OPT;
+
+# added by travis gem
+[ -f /Volumes/data/home/$USERNAME/.travis/travis.sh ] && source /Volumes/data/home/$USERNAME/.travis/travis.sh

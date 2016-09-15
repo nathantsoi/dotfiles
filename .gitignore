@@ -1,0 +1,7 @@
+sublime2/User/Package\ Control.sublime-settings
+sublime2/User/Package Control.last-run
+git/gitconfig.symlink
+cache
+vim/vim.symlink/.netrwhist
+vim/vim.symlink/tmp
+*.pyc
