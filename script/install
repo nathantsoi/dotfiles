@@ -2,6 +2,9 @@
 #
 # Run all dotfiles installers.
 
+# symlink the private dir
+ln -s ~/.dotfiles/private ~/.private
+
 set -e
 
 cd "$(dirname $0)"/..

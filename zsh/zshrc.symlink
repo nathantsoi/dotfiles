@@ -1,7 +1,7 @@
 USERNAME=$(whoami)
 THISDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-for file in $(THISDIR)/../private/*.zsh; do
+for file in $(THISDIR).private/*.zsh; do
   source "$file"
 done
 
