@@ -1,0 +1,71 @@
+#!/bin/zsh
+
+###
+# usage is:
+#   ss [remote host] [local path] [remote path] [*rsync args]
+#
+# --delete is enabled! be sure to test with --dryrun -vv before running for realz
+#
+# .rsync-filter can be specified in ~/.rsync-filter (global) or in the local dir (any leve) for local includes or excludes according to:
+#   http://manpages.ubuntu.com/manpages/xenial/en/man1/rsync.1.html#contenttoc16
+###
+set -o nounset  # exit if trying to use an uninitialized var
+set -o errexit  # exit if any program fails
+set -o pipefail # exit if any program in a pipeline fails, also
+#set -x          # debug mode
+
+# only run on mac, not the linux host
+UNAMESTR=`uname`
+if [ "$UNAMESTR" != 'Darwin' ]; then
+  echo This only works on mac os
+  exit
+fi
+
+# allow these to be set by script args $1, $2 and $3
+CURRENT_PATH=$(pwd -P)
+REMOTE_HOST=${1:-gpu}
+LOCAL_PATH=${2:-$CURRENT_PATH}
+
+zmodload zsh/regex
+
+if ! [[ $LOCAL_PATH -regex-match ^$HOME ]]; then
+  echo "in $LOCAL_PATH, but you must be in $HOME to run this script"
+  exit(1)
+fi
+
+DEFAULT_REMOTE_PATH=$(echo $CURRENT_PATH | sed -e "s/^$(echo "$HOME" | sed 's/\//\\\//g')\///")
+REMOTE_PATH=${3:-"$DEFAULT_REMOTE_PATH"}
+
+if ! command -v fswatch> /dev/null 2>&1; then
+
+  echo installing fswatch
+  brew install fswatch
+fi
+
+LOCAL_PATH="$LOCAL_PATH/"
+echo syncing $LOCAL_PATH to $REMOTE_HOST:$REMOTE_PATH
+#exit 0
+
+# add to the rsync command to debug:
+#    --dry-run \
+#    -v \
+# --delete-after makes sure we transfer the .rsync-filter files before deletion
+#    required, since the remote host is responsible for deletion
+
+while true
+do
+  rsync \
+    "${@:4}" \
+    --links \
+    -avz \
+    -e "ssh" \
+    --progress \
+    --delete \
+    --delete-after \
+    --filter="merge $HOME/.rsync-filter" \
+    --filter='dir-merge /.rsync-filter' \
+    --stats \
+    $LOCAL_PATH $REMOTE_HOST:$REMOTE_PATH #| tr '\n' '\r';
+
+  fswatch -1 -e \.git/ $LOCAL_PATH;
+done

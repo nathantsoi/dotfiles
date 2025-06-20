@@ -1,0 +1,54 @@
+# Local User Configuration Example
+# Copy this file to user-config.zsh.local and customize for your setup
+
+# Username for deployment and backup operations
+export DOTFILES_USER="${USER:-$(whoami)}"
+
+# Root user name (if different from default)
+export ROOT_USER="root${DOTFILES_USER}"
+
+# Deploy user (for deployment scripts)
+export DEPLOY_USER="${DOTFILES_USER}"
+
+# Personal source code directory
+export SRC="$HOME/src"
+
+# External backup volume names (customize for your backup drives)
+export EXTERNAL_VOLUME="BackupDrive"
+export EXTRA_EXTERNAL_VOLUME="BackupDrive2"
+export PHOTO_BACKUP_VOLUME="PhotoBK"
+
+# Git repository information (customize for your fork)
+export DOTFILES_REPO_USER="your-username"
+export DOTFILES_REPO_HOST="github.com"  # or gitlab.com, etc.
+
+# Personal project paths
+export PICO_SDK_PATH="$HOME/src/embedded/pico-sdk"
+export ARMGCC_DIR="$HOME/src/embedded/tools/gcc-arm-none-eabi-6-2017-q2-update"
+
+# Android development paths
+export ANDROID_SDK_ROOT="$HOME/Library/Android/sdk"
+export ANDROID_NDK_HOME="$HOME/Library/Android/sdk/ndk-bundle"
+export ANDROID_HOME="$ANDROID_SDK_ROOT"
+export NDK_PATH="$ANDROID_NDK_HOME"
+
+# Optional: TensorRT path (uncomment and customize if you have TensorRT installed)
+# export TENSORRT_LIB_PATH="$HOME/Downloads/TensorRT-8.5.2.2/lib"
+# if [[ -n "$TENSORRT_LIB_PATH" ]]; then
+#   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$TENSORRT_LIB_PATH
+# fi
+
+# Optional: Google Cloud SDK paths (uncomment and customize if you have it installed)
+# export GCLOUD_SDK_PATH="$HOME/Downloads/google-cloud-sdk"
+# if [[ -f "$GCLOUD_SDK_PATH/path.zsh.inc" ]]; then 
+#   source "$GCLOUD_SDK_PATH/path.zsh.inc"
+# fi
+# if [[ -f "$GCLOUD_SDK_PATH/completion.zsh.inc" ]]; then 
+#   source "$GCLOUD_SDK_PATH/completion.zsh.inc"
+# fi
+
+# Optional: Codeium Windsurf path (uncomment and customize if you have it installed)
+# export WINDSURF_PATH="$HOME/.codeium/windsurf/bin"
+# if [[ -n "$WINDSURF_PATH" && -d "$WINDSURF_PATH" ]]; then
+#   export PATH="$WINDSURF_PATH:$PATH"
+# fi 

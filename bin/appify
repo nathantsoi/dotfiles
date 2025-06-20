@@ -1,0 +1,62 @@
+#!/bin/bash
+
+if [ "$1" = "-h" -o "$1" = "--help" ]; then cat <<EOF
+appify v3.0.0 for Mac OS X - http://mths.be/appify
+Creates the simplest possible Mac app from a shell script.
+Appify takes a shell script as its first argument:
+    `basename "$0"` my-script.sh
+Note that you cannot rename appified apps. If you want to give your app
+a custom name, use the second argument:
+    `basename "$0"` my-script.sh "My App"
+Copyright (c) Thomas Aylott <http://subtlegradient.com/>
+Modified by Mathias Bynens <http://mathiasbynens.be/>
+Modified by Andrew Dvorak <http://OhReally.net/>
+EOF
+exit; fi
+
+# OSX_VERSION is currently unused, though knowing this may help, since the
+# GenericApplicationIcon.icns file may be located elsewhere pre-10.6.x
+OSX_VERSION=`sw_vers -productVersion`
+
+APPNAME=${2:-$(basename "$1" ".sh")}
+ICNSFILE=${3:-"/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns"}
+echo App Name: $APPNAME
+echo Icns file: $ICNSFILE
+
+DIR="$APPNAME.app/Contents"
+
+if [ -a "$APPNAME.app" ]; then
+	echo "$PWD/$APPNAME.app already exists :("
+	exit 1
+fi
+
+mkdir -p $DIR/{MacOS,Resources}
+
+# Copy Apple's GenericApplicationIcon to our application.
+# - TODO: provide command-line options for specifying an icon to use
+#         (maybe even allow the user to specify an)
+cp $ICNSFILE "$DIR/Resources/$APPNAME.icns"
+
+cp "$1" "$DIR/MacOS/$APPNAME"
+chmod +x "$DIR/MacOS/$APPNAME"
+
+cat <<EOF > $DIR/Info.plist
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key>
+	<string>$APPNAME</string>
+	<key>CFBundleGetInfoString</key>
+	<string>$APPNAME</string>
+	<key>CFBundleIconFile</key>
+	<string>$APPNAME</string>
+	<key>CFBundleName</key>
+	<string>$APPNAME</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+</dict>
+</plist>
+EOF
+
+echo "$PWD/$APPNAME.app"

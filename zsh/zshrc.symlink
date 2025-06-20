@@ -1,0 +1,258 @@
+# Load user configuration first (before everything else)
+# Check for local user config first, then fall back to default
+if [[ -f $HOME/.dotfiles/zsh/user-config.zsh.local ]]; then
+  source $HOME/.dotfiles/zsh/user-config.zsh.local
+elif [[ -f $HOME/.dotfiles/zsh/user-config.zsh ]]; then
+  source $HOME/.dotfiles/zsh/user-config.zsh
+fi
+
+# we want vim!
+export EDITOR=vim
+
+DATEFUNC=$(type -p gdate &>/dev/null && echo "gdate" || echo "date")
+
+function source_if_possible()
+{
+    if [[ -r $1 ]]; then
+        source $1
+    fi
+}
+
+# startup time begin
+STARTTIME=$($DATEFUNC "+%s.%N")
+
+# set true to profile zsh startup
+PROFILE_STARTUP=false
+# BEGIN PROFILING
+if [[ "$PROFILE_STARTUP" == true ]]; then
+  #https://github.com/raboof/zshprof
+  PS4=$'\\\011%D{%s%6.}\011%x\011%I\011%N\011%e\011'
+  exec 3>&2 2>/tmp/zshstart.$$.log
+  setopt xtrace prompt_subst
+fi
+
+# postgres
+export PATH=/opt/homebrew/opt/postgresql@15/bin:${PATH}
+
+# pipx
+export PATH=${HOME}/.local/bin:${PATH}
+
+# Note: ROOT_USER and DEPLOY_USER are now defined in user-config.zsh
+# vim
+source $HOME/.dotfiles/zsh/vim.sh
+# ros
+#source_if_possible $HOME/.dotfiles/zsh/ros.sh
+# cuda
+source_if_possible $HOME/.dotfiles/zsh/cuda.sh
+
+## nvm
+export NODE_ENV=development
+#NVM_DOTFILES=$HOME/.dotfiles/nvm
+#source $NVM_DOTFILES/nvm.sh
+export NVM_DIR=~/.nvm
+source $(brew --prefix nvm)/nvm.sh
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+## yarn
+export PATH="$(yarn global bin):$PATH"
+
+# gvm
+#source $HOME/.gvm/scripts/gvm
+
+# Note: SRC is now defined in user-config.zsh
+
+## flutter
+#export PATH="$SRC/flutter/bin:$PATH"
+export PATH=$HOME/development/flutter/bin:$PATH
+## dart pub
+#export PATH="$PATH":"$HOME/.pub-cache/bin"
+
+## fuchsia
+#export PATH="$SRC/fuchsia/.jiri_root/bin:$PATH"
+
+## java
+export PATH=/opt/homebrew/opt/openjdk/bin:${PATH}
+
+## android
+#export JAVA_HOME=$(/usr/libexec/java_home)
+# Note: Android SDK variables are now defined in user-config.zsh
+export PATH="$PATH:$ANDROID_SDK_ROOT/tools/bin/:$NDK_PATH"
+
+## fuchsia
+FUCHSIA=$HOME/src/fuchsia
+export PATH=$FUCHSIA/fuchsia/.jiri_root/bin:$PATH
+#source $FUCHSIA/fuchsia/scripts/fx-env.sh
+
+# use brew python
+#export PATH=/usr/local/opt/python/libexec/bin:$PATH
+
+# qemu
+#  doesnt work for some reason:
+#export PATH="$PATH:'/Applications/GNU ARM Eclipse/QEMU/$(ls /Applications/GNU\ ARM\ Eclipse/QEMU/|tail -n1)/bin'"
+
+# cuda
+# brew cask install cuda
+#export PATH=$PATH:/usr/local/cuda/bin/
+
+## sonar
+#export PATH="$PATH:$HOME/src/sequoia/sonar/sonar-spark/bin"
+
+## batali
+#export PATH="$PATH:$HOME/src/chef/batali/bin"
+
+## batali
+#source ~/.aws_keys
+
+# homebrew-cask
+export HOMEBREW_CASK_OPTS="--appdir=/Applications"
+
+# fzf
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+
+# oh-my-zsh
+plugins=(rails git ruby osx rake brew adb fzf tmux tmuxinator)
+export ZSH=$HOME/.dotfiles/zsh/oh-my-zsh
+source $ZSH/oh-my-zsh.sh
+
+# shortcut to this dotfiles path is $ZSH
+export ZSH=$HOME/.dotfiles
+
+## your project folder that we can `c [tab]` to
+#export PROJECTS=~/src
+
+## ROS
+#ROS_SETUP=/opt/ros/indigo/setup.zsh
+#[ -f $ROS_SETUP ] && source $ROS_SETUP
+
+## Openni
+#export OPENNI2_INCLUDE=/usr/local/include/ni2
+#export OPENNI2_REDIST=/usr/local/lib/ni2
+
+# NXP examples and px4
+# Note: ARMGCC_DIR is now defined in user-config.zsh
+export PATH=$ARMGCC_DIR/bin:$PATH
+
+## Zephyr
+#export ZEPHYR_BASE=$HOME/src/embedded/zephyr/
+#[ -f $ZEPHYR_BASE/zephyr-env.sh ] && source $ZEPHYR_BASE/zephyr-env.sh
+
+# use .localrc for SUPER SECRET CRAP that you don't
+# want in your public, versioned repo.
+if [[ -a ~/.localrc ]]
+then
+  source ~/.localrc
+fi
+
+# all of our zsh files
+typeset -U config_files
+config_files=($ZSH/**/*.zsh)
+
+# load the path files
+for file in ${(M)config_files:#*/path.zsh}
+do
+  source $file
+done
+
+# load everything but the path and completion files and oh-my-zsh
+for file in ${${config_files:#*/path.zsh}:#*/completion.zsh}
+do
+  if [[ "$file" == */oh-my-zsh/* ]]; then
+    continue
+  fi
+  source $file
+done
+
+# initialize autocomplete here, otherwise functions won't be loaded
+autoload -U compinit
+compinit
+
+# load every completion after autocomplete loads
+for file in ${(M)config_files:#*/completion.zsh}
+do
+  source $file
+done
+
+unset config_files
+
+#### Added by the Heroku Toolbelt
+#export PATH="/usr/local/heroku/bin:$PATH"
+
+#PERL_MB_OPT="--install_base \"/Volumes/data/home/${DOTFILES_USER}/perl5\""; export PERL_MB_OPT;
+#PERL_MM_OPT="INSTALL_BASE=/Volumes/data/home/${DOTFILES_USER}/perl5"; export PERL_MM_OPT;
+
+## added by travis gem
+#[ -f /Volumes/data/home/${DOTFILES_USER}/.travis/travis.sh ] && source /Volumes/data/home/${DOTFILES_USER}/.travis/travis.sh
+
+# rbenv
+export PATH="$HOME/.rbenv/bin:$PATH"
+eval "$(rbenv init -)"
+
+# powerline
+source $HOME/.dotfiles/powerline/paths.zsh
+
+# pipenv
+source $HOME/.dotfiles/zsh/pipenv.zsh
+
+# pyenv, make sure this goes after all other path loads
+# only load on demand
+source $HOME/.dotfiles/zsh/pyenv.zsh
+
+# tensorrt
+# https://docs.nvidia.com/deeplearning/tensorrt/install-guide/index.html#installing-tar
+# Note: Uncomment and set TENSORRT_LIB_PATH in user-config.zsh if you have TensorRT
+# export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$TENSORRT_LIB_PATH
+
+# Docker compose
+export USERID=$(id -u)
+export USERNAME=$(whoami)
+export GROUPID=$(id -g)
+
+# conda
+#conda init "$(basename "${SHELL}")"
+
+# nuttx
+# Note: PICO_SDK_PATH is now defined in user-config.zsh
+
+# OS specific commands
+case "$(uname -s)" in
+
+   Darwin)
+     #echo 'Mac OS X'
+     ;;
+
+   Linux)
+     #echo 'Linux'
+     # https://askubuntu.com/questions/363346/how-to-permanently-switch-caps-lock-and-esc#answer-830343
+     #setxkbmap -option caps:swapescape
+     ;;
+esac
+
+
+# COMPLETE PROFILING
+if [[ "$PROFILE_STARTUP" == true ]]; then
+  unsetopt xtrace
+  exec 2>&3 3>&-
+fi
+
+export PYENV_ROOT="$HOME/.pyenv"
+command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+
+# startup time end
+echo startup took $(( ($($DATEFUNC "+%s.%N") - $STARTTIME) )) seconds
+
+
+# The next line updates PATH for the Google Cloud SDK.
+# Note: Uncomment and set GCLOUD_SDK_PATH in user-config.zsh if you have Google Cloud SDK
+# if [ -f "$GCLOUD_SDK_PATH/path.zsh.inc" ]; then . "$GCLOUD_SDK_PATH/path.zsh.inc"; fi
+
+# The next line enables shell command completion for gcloud.
+# if [ -f "$GCLOUD_SDK_PATH/completion.zsh.inc" ]; then . "$GCLOUD_SDK_PATH/completion.zsh.inc"; fi
+
+export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
+
+# Added by Windsurf
+# Note: Uncomment and set WINDSURF_PATH in user-config.zsh if you have Windsurf
+# export PATH="$WINDSURF_PATH:$PATH"

@@ -1,0 +1,65 @@
+#!/bin/zsh
+
+set -o nounset	# exit if trying to use an uninitialized var
+set -o errexit	# exit if any program fails
+set -o pipefail # exit if any program in a pipeline fails, also
+#set -x          # debug mode
+
+# load the move command
+SCRIPT_DIR=$(dirname $(realpath $0))
+source ${SCRIPT_DIR}/../zsh/aliases.zsh
+
+# we need exiv2
+command -v exiv2 >/dev/null 2>&1 || { echo >&2 "Please brew install exiv2, it's not installed.  Aborting."; exit 1; }
+
+source="$(pwd)"
+target=$source
+while getopts p:l:t: opt; do
+  case $opt in
+  s)
+      source=$OPTARG
+      ;;
+  t)
+      target=$OPTARG
+      ;;
+  esac
+done
+
+echo sorting pictures and movies in "$source" into "$target"
+
+find "$source" -maxdepth 1 -type f -iname "*.jpg" -o -iname "*.png" -o -iname "*.mp4" -o -iname "*.mts" -o -iname "*.gif" -o -iname "*.mov" -o -type d -iname "IMG_*" | while read file ; do
+   bname=$(basename "$file")
+   dname=$(dirname "$file")
+   date=$(exiv2 "$file" 2> /dev/null | awk '/Image timestamp/ { print $4 }' || echo '')
+   # if date is empty, check ffmpeg
+   if [[ -z "$date" ]]
+   then
+     date=$(ffmpeg -i "$file" 2>&1 | perl -n -e '/creation_time\s+: (\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})/ && print "$1:$2:$3\n"' | head -n1 || echo '')
+   fi
+   # if date is empty, look at the file name
+   if [[ -z "$date" ]]
+   then
+     date=$(echo "$file" | perl -n -e '/(PANO|VID)_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/ && print "$2:$3:$4\n"' || echo '')
+   fi
+   # if date is still empty, look at the creation date
+   if [[ -z "$date" ]]
+   then
+     date=$(stat -f%SB -t %Y:%m:%d "$file" || echo '')
+   fi
+   # if date is still empty, look for an `IMG_20161119_154752/` folder
+   if [[ -z "$date" ]]
+   then
+     date=$(echo "$file" | perl -n -e '/IMG_(\d{4})(\d{2})(\d{2})_.*/ && print "$1:$2:$3\n"' || echo '')
+   fi
+   [ -z "$date" ] && echo " $file did not have date" && continue
+   year=${date%%:*}
+   month=${date%:*}
+   month=${date%:*}
+   month=${month#*:}
+   day=${date##*:}
+   dtarget=${target}/${year}-${month}-${day}/
+   mkdir -p "$dtarget"
+   if [ "$dname" != "$dtarget" ]; then
+     move "$file" "$dtarget"
+   fi
+done

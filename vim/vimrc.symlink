@@ -1,0 +1,219 @@
+" vim-plug
+if empty(glob('~/.vim/autoload/plug.vim'))
+  silent !curl -fLo ~/.vim/autoload/plug.vim --create-dirs
+    \ https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+  autocmd VimEnter * PlugInstall --sync | source $MYVIMRC
+endif
+call plug#begin('~/.vim/bundle')
+" general
+"Plug 'Valloric/YouCompleteMe'
+Plug 'vim-syntastic/syntastic'
+
+Plug 'scrooloose/nerdtree'
+
+Plug 'dart-lang/dart-vim-plugin'
+
+" replaced by fzf
+"Plug 'kien/ctrlp.vim'
+
+" replaced by fzf
+"Plug 'rking/ag.vim'
+
+" file browser
+Plug 'tpope/vim-vinegar'
+" git
+Plug 'tpope/vim-fugitive'
+" julia
+Plug 'JuliaEditorSupport/julia-vim'
+" rails / rb
+Plug 'tpope/vim-rails'
+" js, too slow!
+"Plug 'wookiehangover/jshint.vim'
+" coffeescript
+Plug 'kchmck/vim-coffee-script'
+" vue
+Plug 'posva/vim-vue'
+" typescript
+Plug 'Quramy/tsuquyomi'
+Plug 'Shougo/vimproc.vim'
+Plug 'leafgarland/typescript-vim'
+Plug 'Quramy/vim-js-pretty-template'
+Plug 'jason0x43/vim-js-indent'
+" npm
+Plug 'GutenYe/json5.vim'
+" colors
+Plug 'dracula/vim', { 'as': 'dracula' }
+" snippets engine
+"Plug 'SirVer/ultisnips'
+" snippet contents
+"Plug 'honza/vim-snippets'
+" 🌸 A command-line fuzzy finder
+Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --all' }
+Plug 'junegunn/fzf.vim'
+Plug 'mzlogin/vim-smali'
+
+" markdown
+"  Usage:
+"  Open preview window in markdown buffer
+"    :MarkdownPreview
+"  Close the preview window and server
+"    :MarkdownPreviewStop
+Plug 'iamcco/mathjax-support-for-mkdp'
+Plug 'iamcco/markdown-preview.vim'
+call plug#end()
+
+" Disable syntastic for python
+let g:syntastic_mode_map = { 'passive_filetypes': ['python'] }
+
+" When started as "evim", evim.vim will already have done these settings.
+if v:progname =~? "evim"
+  finish
+endif
+
+" Disable automatic newlines
+set fileformats+=dos
+
+" allow backspacing over everything in insert mode
+set backspace=indent,eol,start
+
+set nobackup    " do not keep a backup file, use versions instead
+set history=50    " keep 50 lines of command line history
+set ruler    " show the cursor position all the time
+set showcmd    " display incomplete commands
+set expandtab
+set shiftwidth=2
+set tabstop=2
+set ignorecase
+set smartcase
+set hlsearch
+set dir=~/.vim/tmp
+set wildmode=longest
+
+" Don't use Ex mode, use Q for formatting
+map Q gq
+
+" This is an alternative that also works in block mode, but the deleted
+" text is lost and it only works for putting the current register.
+"vnoremap p "_dp
+
+" Switch syntax highlighting on, when the terminal has colors
+" Also switch on highlighting the last used search pattern.
+"if &t_Co > 2 || has("gui_running")
+"  syntax enable
+"endif
+
+" Searching
+"   via ls-files
+"let g:ctrlp_user_command = ['.git/', 'git --git-dir=%s/.git ls-files -oc --exclude-standard']
+
+"   via fzf
+"   per https://github.com/hpurmann/dotfiles/commit/b1c8c42e380d724c1732121ad2cf3094a3045b10
+function! s:find_git_root()
+  return system('git rev-parse --show-toplevel 2> /dev/null')[:-2]
+endfunction
+command! ProjectFiles execute 'Files' s:find_git_root()
+nnoremap <c-P> :ProjectFiles<CR>
+
+" Augmenting Ag command using fzf#vim#with_preview function
+"   * fzf#vim#with_preview([[options], preview window, [toggle keys...]])
+"     * For syntax-highlighting, Ruby and any of the following tools are required:
+"       - Highlight: http://www.andre-simon.de/doku/highlight/en/highlight.php
+"       - CodeRay: http://coderay.rubychan.de/
+"       - Rouge: https://github.com/jneen/rouge
+"
+"   :Ag  - Start fzf with hidden preview window that can be enabled with "?" key
+"   :Ag! - Start fzf in fullscreen and display the preview window above
+command! -bang -nargs=* Ag
+  \ call fzf#vim#ag(<q-args>,
+  \                 <bang>0 ? fzf#vim#with_preview('up:60%')
+  \                         : fzf#vim#with_preview('right:50%:hidden', '?'),
+  \                 <bang>0)
+
+" set in ~/.zshrc -> ~/.fzf.zsh
+"let $FZF_DEFAULT_COMMAND = 'ag --hidden --ignore .git -g ""'
+
+"   via ag
+" let g:ctrlp_user_command = 'ag %s -l --nocolor --hidden --ignore .git -g ""'
+
+"" https://github.com/SirVer/ultisnips
+"" Do not use <tab> if you use https://github.com/Valloric/YouCompleteMe.
+"let g:UltiSnipsExpandTrigger="<s-tab>"
+"let g:UltiSnipsJumpForwardTrigger="<c-b>"
+"let g:UltiSnipsJumpBackwardTrigger="<c-z>"
+"" If you want :UltiSnipsEdit to split your window.
+"let g:UltiSnipsEditSplit="vertical"
+
+
+if has("gui_running")
+  syntax on
+  color dracula
+  set lines=40 columns=160
+  set toolbar=icons,text
+  set guioptions-=T
+  if has("gui_gtk2")
+		set guifont=Inconsolata-g\ for \ Powerline\ g\ h14
+    " Fix stupid pasting
+    source $VIMRUNTIME/mswin.vim
+    behave mswin
+  elseif has("gui_macvim")
+		set guifont=Inconsolata-g\ for\ Powerline:h14
+    set transparency=0
+  elseif has("gui_win32")
+    set guifont=Consolas:h11:cANSI
+  endif
+endif
+
+
+" Setup for multibyte
+if has("multi_byte")
+  set fileencodings=ucs-bom,utf-8
+endif
+
+" Only do this part when compiled with support for autocommands.
+if has("autocmd")
+
+  " Spell check https://robots.thoughtbot.com/vim-spell-checking
+  autocmd BufRead,BufNewFile *.md setlocal spell
+  autocmd BufRead,BufNewFile *.markdown* setlocal spell
+
+  " Disable automatic newlines in text files
+  autocmd BufRead,BufNewFile *.txt setlocal textwidth=0 wrapmargin=0
+
+  " Enable file type detection.
+  " Use the default filetype settings, so that mail gets 'tw' set to 72,
+  " 'cindent' is on in C files, etc.
+  " Also load indent files, to automatically do language-dependent indenting.
+  filetype plugin indent on
+
+  " Put these in an autocmd group, so that we can delete them easily.
+  augroup vimrcEx
+  au!
+
+  " For all text files set 'textwidth' to 78 characters.
+  autocmd FileType text setlocal textwidth=78
+
+  " When editing a file, always jump to the last known cursor position.
+  " Don't do it when the position is invalid or when inside an event handler
+  " (happens when dropping a file on gvim).
+  autocmd BufReadPost *
+    \ if line("'\"") > 0 && line("'\"") <= line("$") |
+    \   exe "normal g`\"" |
+    \ endif
+
+  augroup END
+
+else
+
+  set autoindent    " always set autoindenting on
+
+endif " has("autocmd")
+
+" Powerline
+let g:Powerline_symbols = 'unicode'
+python3 from powerline.vim import setup as powerline_setup
+python3 powerline_setup()
+python3 del powerline_setup
+" Always show statusline
+set laststatus=2
+set t_Co=256
+

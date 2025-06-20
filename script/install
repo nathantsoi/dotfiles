@@ -1,0 +1,25 @@
+#!/bin/bash
+#
+# Run all dotfiles installers.
+
+#set -o nounset
+#set -o errexit
+#set -o pipefail
+set -e
+
+cd "$(dirname $0)"/..
+
+UNAMESTR=`uname`
+if [ "$UNAMESTR" == 'Darwin' ]; then
+  brew install git
+fi
+
+if [ "$UNAMESTR" == 'Linux' ]; then
+  # just skip if we don't have root
+  sudo apt install -y git || 1
+fi
+
+# find the installers and run them iteratively
+
+#find . -maxdepth 2 -name install.sh -prune | while read installer ; do echo "INSTALLING $installer" && sh -c "${installer}" ; done
+find . -maxdepth 2 -name install.sh -prune -exec bash -c "{}" \;

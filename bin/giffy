@@ -1,0 +1,9 @@
+#!/bin/zsh
+# https://gist.github.com/dergachev/4627207
+
+set -o nounset	# exit if trying to use an uninitialized var
+set -o errexit	# exit if any program fails
+set -o pipefail # exit if any program in a pipeline fails, also
+#set -x          # debug mode
+
+ffmpeg -i $1 -s 960x600 -pix_fmt rgb24 -r 10 -f gif - | gifsicle --optimize=3 --delay=6 > ${1}.gif
