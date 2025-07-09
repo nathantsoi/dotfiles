@@ -46,7 +46,7 @@ source $HOME/.dotfiles/zsh/vim.sh
 source_if_possible $HOME/.dotfiles/zsh/cuda.sh
 
 ## nvm
-export NODE_ENV=development
+#export NODE_ENV=development
 #NVM_DOTFILES=$HOME/.dotfiles/nvm
 #source $NVM_DOTFILES/nvm.sh
 export NVM_DIR=~/.nvm
@@ -252,7 +252,3 @@ echo startup took $(( ($($DATEFUNC "+%s.%N") - $STARTTIME) )) seconds
 # if [ -f "$GCLOUD_SDK_PATH/completion.zsh.inc" ]; then . "$GCLOUD_SDK_PATH/completion.zsh.inc"; fi
 
 export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
-
-# Added by Windsurf
-# Note: Uncomment and set WINDSURF_PATH in user-config.zsh if you have Windsurf
-# export PATH="$WINDSURF_PATH:$PATH"
