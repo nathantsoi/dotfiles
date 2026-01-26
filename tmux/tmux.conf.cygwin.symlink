@@ -1,0 +1,8 @@
+# Copy the current buffer to system clipboard
+bind C-c run "tmux save-buffer - | cat >/dev/clipboard" \
+
+# Copy system clipboard to the current buffer and then paste the content
+bind C-v run "cat /dev/clipboard | tmux load-buffer - && tmux paste-buffer" \
+
+# Copy selection using a vi-like command; also copy it to system clipboard
+bind -t vi-copy y copy-pipe "cat >/dev/clipboard"

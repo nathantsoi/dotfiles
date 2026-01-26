@@ -1,0 +1,74 @@
+#!/usr/bin/env ruby
+#
+#             __         ____
+#       _____/ /_  ___  / / /     ____ _____  ____
+#      / ___/ __ \/ _ \/ / /_____/ __ `/ __ \/ __ \
+#     (__  ) / / /  __/ / /_____/ /_/ / /_/ / /_/ /
+#    /____/_/ /_/\___/_/_/      \__,_/ .___/ .___/
+#                                   /_/   /_/
+#
+# shell-app
+#
+# Turn a shell script into an OS X application.
+#
+# Usage:
+#
+#   shell-app example.sh example.app example.icns
+#
+# William Melody, 2014 - https://github.com/alphabetum/shell-app/
+
+require 'tempfile'
+
+APPLESCRIPT_TEMPLATE = <<-TEMPLATE
+#!/usr/bin/osascript
+set current_path to (path to me)
+do shell script "." & POSIX path of current_path & "Contents/Resources/Scripts/shellscript"
+TEMPLATE
+
+source = ARGV[0]
+target = ARGV[1]
+icns = ARGV[2]
+
+if ARGV[0] == "-h" || !ARGV[0] || !ARGV[1] || !ARGV[2]
+  puts  "Description: Turn a shell script into an OS X application.\n" +
+        "Usage: shell-app source destination.app someicons.icns"
+elsif target !~ /.app$/
+  puts "Error: Target must have a .app extension."
+elsif icns !~ /.icns$/
+  puts "Error: icon file must have a .icns extension."
+elsif !File.exists?(icns)
+  puts "Error: Cannot find icon file."
+elsif File.exists?(target)
+  puts "Error: File already exists at target location."
+else
+  # If input is a file, read the file, otherwise just use source.
+  if File.exists?(source)
+    input = File.open(source).read
+  else
+    input = source
+  end
+
+  # Write the applescript template to a tempfile for compilation
+  t = Tempfile.new('applescript', '/tmp').tap do |file|
+    file.write(APPLESCRIPT_TEMPLATE)
+  end
+  t.rewind
+
+  # Use osacompile to create the application bundle
+  %x[osacompile -o #{target} #{t.path}]
+
+  # Place the shell script content into a file saved in the application
+  # bundle's script directory. This file will then be called by the AppleScript
+  script_path = File.join(target, 'Contents', 'Resources', 'Scripts', 'shellscript')
+  File.open(script_path, 'w') do |file|
+    file.write(input)
+    file.chmod(0755)
+  end
+
+  # Place icns
+  icns_file_name = target.split('.')[0]
+  %x[cp #{icns} #{File.join(target, 'Contents', 'Resources', 'applet.icns')}]
+
+  # Hide extra icon when running
+  %x[sed -i '' 's/<\\/dict>/		<key>LSUIElement<\\/key>\r		<string>1<\\/string>\r<\\/dict>/' "#{File.join(target, 'Contents', 'Info.plist')}"]
+end
