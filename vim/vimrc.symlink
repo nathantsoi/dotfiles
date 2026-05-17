@@ -7,7 +7,8 @@ endif
 call plug#begin('~/.vim/bundle')
 " general
 "Plug 'Valloric/YouCompleteMe'
-Plug 'vim-syntastic/syntastic'
+" Disabled: old syntastic autocommands break empty-buffer startup on newer Vim.
+"Plug 'vim-syntastic/syntastic'
 
 Plug 'scrooloose/nerdtree'
 
@@ -61,9 +62,6 @@ Plug 'mzlogin/vim-smali'
 Plug 'iamcco/mathjax-support-for-mkdp'
 Plug 'iamcco/markdown-preview.vim'
 call plug#end()
-
-" Disable syntastic for python
-let g:syntastic_mode_map = { 'passive_filetypes': ['python'] }
 
 " When started as "evim", evim.vim will already have done these settings.
 if v:progname =~? "evim"
@@ -210,14 +208,16 @@ endif " has("autocmd")
 
 " Powerline
 let g:Powerline_symbols = 'unicode'
-set rtp+=$HOME/.local/share/pipx/venvs/powerline-status/lib/python3.12/site-packages/powerline/bindings/vim/
-set laststatus=2
-python3 import sys, os
-python3 sys.path.insert(0, os.path.join(os.environ['HOME'], '.local/share/pipx/venvs/powerline-status/lib/python3.12/site-packages/'))
-python3 from powerline.vim import setup as powerline_setup
-python3 powerline_setup()
-python3 del powerline_setup
+let s:powerline_site_packages = expand('~/.local/share/pipx/venvs/powerline-status/lib/python3.12/site-packages')
+if has('python3') && isdirectory(s:powerline_site_packages . '/powerline/bindings/vim')
+  execute 'set rtp+=' . fnameescape(s:powerline_site_packages . '/powerline/bindings/vim')
+  set laststatus=2
+  python3 import sys, os, vim
+  python3 sys.path.insert(0, vim.eval('s:powerline_site_packages'))
+  python3 from powerline.vim import setup as powerline_setup
+  python3 powerline_setup()
+  python3 del powerline_setup
+endif
 " Always show statusline
 set laststatus=2
 set t_Co=256
-

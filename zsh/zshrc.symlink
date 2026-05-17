@@ -18,6 +18,16 @@ function source_if_possible()
     fi
 }
 
+typeset -U path PATH
+
+path_prepend_if_exists() {
+  [[ -d "$1" ]] && path=("$1" $path)
+}
+
+path_append_if_exists() {
+  [[ -d "$1" ]] && path+=("$1")
+}
+
 # startup time begin
 STARTTIME=$($DATEFUNC "+%s.%N")
 
@@ -32,10 +42,10 @@ if [[ "$PROFILE_STARTUP" == true ]]; then
 fi
 
 # postgres
-export PATH=/opt/homebrew/opt/postgresql@15/bin:${PATH}
+path_prepend_if_exists /opt/homebrew/opt/postgresql@15/bin
 
 # pipx
-export PATH=${HOME}/.local/bin:${PATH}
+path_prepend_if_exists "${HOME}/.local/bin"
 
 # Note: ROOT_USER and DEPLOY_USER are now defined in user-config.zsh
 # vim
@@ -52,7 +62,10 @@ source_if_possible $HOME/.dotfiles/zsh/cuda.sh
 
 ## flutter
 #export PATH="$SRC/flutter/bin:$PATH"
-export PATH="$HOME/develop/flutter/bin:$PATH"
+path_prepend_if_exists "$HOME/develop/flutter/bin"
+path_prepend_if_exists "$HOME/development/flutter/bin"
+## flutterfire
+path_append_if_exists "$HOME/.pub-cache/bin"
 ## dart pub
 #export PATH="$PATH":"$HOME/.pub-cache/bin"
 
@@ -60,16 +73,17 @@ export PATH="$HOME/develop/flutter/bin:$PATH"
 #export PATH="$SRC/fuchsia/.jiri_root/bin:$PATH"
 
 ## java
-export PATH=/opt/homebrew/opt/openjdk/bin:${PATH}
+path_prepend_if_exists /opt/homebrew/opt/openjdk/bin
 
 ## android
 #export JAVA_HOME=$(/usr/libexec/java_home)
 # Note: Android SDK variables are now defined in user-config.zsh
-export PATH="$PATH:$ANDROID_SDK_ROOT/tools/bin/:$NDK_PATH"
+path_append_if_exists "$ANDROID_SDK_ROOT/tools/bin"
+path_append_if_exists "$NDK_PATH"
 
 ## fuchsia
 FUCHSIA=$HOME/src/fuchsia
-export PATH=$FUCHSIA/fuchsia/.jiri_root/bin:$PATH
+path_prepend_if_exists "$FUCHSIA/fuchsia/.jiri_root/bin"
 #source $FUCHSIA/fuchsia/scripts/fx-env.sh
 
 # use brew python
@@ -101,10 +115,10 @@ fi
 #export HOMEBREW_CASK_OPTS="--appdir=/Applications"
 
 # fzf
-[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+[[ -t 0 && -f ~/.fzf.zsh ]] && source ~/.fzf.zsh
 
 # oh-my-zsh
-plugins=(rails git ruby osx rake brew adb fzf tmux tmuxinator)
+plugins=(rails git ruby osx rake brew adb tmux tmuxinator)
 export ZSH=$HOME/.dotfiles/zsh/oh-my-zsh
 ZSH_DISABLE_COMPFIX="true"
 source $ZSH/oh-my-zsh.sh
@@ -125,7 +139,7 @@ export ZSH=$HOME/.dotfiles
 
 # NXP examples and px4
 # Note: ARMGCC_DIR is now defined in user-config.zsh
-export PATH=$ARMGCC_DIR/bin:$PATH
+path_prepend_if_exists "$ARMGCC_DIR/bin"
 
 ## Zephyr
 #export ZEPHYR_BASE=$HOME/src/embedded/zephyr/
@@ -151,19 +165,22 @@ done
 # load everything but the path and completion files and oh-my-zsh
 for file in ${${config_files:#*/path.zsh}:#*/completion.zsh}
 do
-  if [[ "$file" == */oh-my-zsh/* ]]; then
-    continue
-  fi
+  case "$file" in
+    */oh-my-zsh/*|*/vim.symlink/*) continue ;;
+  esac
   source $file
 done
 
 # initialize autocomplete here, otherwise functions won't be loaded
 autoload -U compinit
-compinit
+compinit -d "${ZDOTDIR:-$HOME}/.zcompdump-${ZSH_VERSION}"
 
 # load every completion after autocomplete loads
 for file in ${(M)config_files:#*/completion.zsh}
 do
+  case "$file" in
+    */oh-my-zsh/*|*/vim.symlink/*) continue ;;
+  esac
   source $file
 done
 
@@ -178,19 +195,11 @@ unset config_files
 ## added by travis gem
 #[ -f /Volumes/data/home/${DOTFILES_USER}/.travis/travis.sh ] && source /Volumes/data/home/${DOTFILES_USER}/.travis/travis.sh
 
-# rbenv
-export PATH="$HOME/.rbenv/bin:$PATH"
-eval "$(rbenv init -)"
-
 # powerline
 source $HOME/.dotfiles/powerline/paths.zsh
 
 # pipenv
 source $HOME/.dotfiles/zsh/pipenv.zsh
-
-# pyenv, make sure this goes after all other path loads
-# only load on demand
-source $HOME/.dotfiles/zsh/pyenv.zsh
 
 # tensorrt
 # https://docs.nvidia.com/deeplearning/tensorrt/install-guide/index.html#installing-tar
@@ -229,12 +238,10 @@ if [[ "$PROFILE_STARTUP" == true ]]; then
   exec 2>&3 3>&-
 fi
 
-export PYENV_ROOT="$HOME/.pyenv"
-command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
-
 # startup time end
-echo startup took $(( ($($DATEFUNC "+%s.%N") - $STARTTIME) )) seconds
+if [[ "$PROFILE_STARTUP" == true ]]; then
+  echo startup took $(( ($($DATEFUNC "+%s.%N") - $STARTTIME) )) seconds
+fi
 
 
 # The next line updates PATH for the Google Cloud SDK.
@@ -250,7 +257,8 @@ export ISAACSIM_PATH="$HOME/isaacsim"
 # Isaac Sim python executable
 export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
 
-export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
+path_prepend_if_exists "$HOME/.config/yarn/global/node_modules/.bin"
+path_prepend_if_exists "$HOME/.yarn/bin"
 
 # UV
 export UV_ENV_FILE=.env
@@ -262,17 +270,34 @@ fi
 
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('${HOME}/miniconda3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
+if [[ -x "${HOME}/miniconda3/bin/conda" ]]; then
+  __conda_setup="$('${HOME}/miniconda3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
+  if [ $? -eq 0 ]; then
     eval "$__conda_setup"
-else
-    if [ -f "${HOME}/miniconda3/etc/profile.d/conda.sh" ]; then
-        . "${HOME}/miniconda3/etc/profile.d/conda.sh"
-    else
-        export PATH="${HOME}/miniconda3/bin:$PATH"
-    fi
+  elif [ -f "${HOME}/miniconda3/etc/profile.d/conda.sh" ]; then
+    . "${HOME}/miniconda3/etc/profile.d/conda.sh"
+  else
+    path_prepend_if_exists "${HOME}/miniconda3/bin"
+  fi
+  unset __conda_setup
 fi
-unset __conda_setup
 # <<< conda initialize <<<
 
-export PATH="${HOME}/.pixi/bin:$PATH"
+#source /opt/homebrew/opt/chruby/share/chruby/chruby.sh
+#source /opt/homebrew/opt/chruby/share/chruby/auto.sh
+#chruby ruby-3.4.1
+path_prepend_if_exists "$HOME/.pixi/bin"
+
+# Added by Antigravity
+path_prepend_if_exists "$HOME/.antigravity/antigravity/bin"
+
+# Add cargo binaries
+path_prepend_if_exists "$HOME/.cargo/bin"
+
+# Claw: https://github.com/ultraworkers/claw-code#optional-add-to-path
+path_prepend_if_exists "$HOME/src/claw-code/rust/target/release"
+
+
+# Added by LM Studio CLI (lms)
+#export PATH="$PATH:$HOME/.lmstudio/bin"
+# End of LM Studio CLI section
