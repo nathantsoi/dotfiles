@@ -31,8 +31,12 @@ setopt IGNORE_EOF
 setopt AUTO_CD
 setopt AUTO_PUSHD
 setopt PUSHD_IGNORE_DUPS
+setopt PUSHD_SILENT
 setopt INTERACTIVE_COMMENTS
 setopt LONG_LIST_JOBS
+setopt AUTO_LIST
+setopt AUTO_MENU
+setopt ALWAYS_TO_END
 
 setopt APPEND_HISTORY # adds history
 setopt INC_APPEND_HISTORY SHARE_HISTORY  # adds history incrementally and share it across sessions
@@ -46,6 +50,21 @@ setopt HIST_REDUCE_BLANKS
 #   like: git comm-[tab]
 setopt complete_aliases
 
+if command -v fd >/dev/null 2>&1; then
+  export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
+  export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+  export FZF_ALT_C_COMMAND='fd --type d --hidden --follow --exclude .git'
+elif command -v fdfind >/dev/null 2>&1; then
+  export FZF_DEFAULT_COMMAND='fdfind --type f --hidden --follow --exclude .git'
+  export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+  export FZF_ALT_C_COMMAND='fdfind --type d --hidden --follow --exclude .git'
+elif command -v rg >/dev/null 2>&1; then
+  export FZF_DEFAULT_COMMAND='rg --files --hidden --follow --glob "!.git/*"'
+  export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+fi
+
+export FZF_DEFAULT_OPTS='--height=40% --layout=reverse --border --inline-info'
+
 zle -N newtab
 
 bindkey '^[^[[D' backward-word
@@ -55,3 +74,7 @@ bindkey '^[[5C' end-of-line
 bindkey '^[[3~' delete-char
 bindkey '^[^N' newtab
 bindkey '^?' backward-delete-char
+bindkey '^[[A' up-line-or-beginning-search
+bindkey '^[[B' down-line-or-beginning-search
+bindkey '^R' history-incremental-search-backward
+bindkey '^X^E' edit-command-line

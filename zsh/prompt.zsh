@@ -1,92 +1,95 @@
-autoload colors && colors
-# cheers, @ehrenmurdick
-# http://github.com/ehrenmurdick/config/blob/master/zsh/prompt.zsh
+autoload -U colors && colors
 
-if (( $+commands[git] ))
-then
-  git="$commands[git]"
-else
-  git="/usr/bin/git"
-fi
+setopt PROMPT_SUBST
 
-git_branch() {
-  echo $($git symbolic-ref HEAD 2>/dev/null | awk -F/ {'print $NF'})
+POWERLINE_LEFT_SEPARATOR=$'\ue0b0'
+
+# Native Powerline-style fallback. powerline/paths.zsh loads Python
+# powerline-status later and overrides this prompt when available.
+POWERLINE_USER_BG=${POWERLINE_USER_BG:-25}
+POWERLINE_USER_FG=${POWERLINE_USER_FG:-white}
+POWERLINE_CWD_BG=${POWERLINE_CWD_BG:-240}
+POWERLINE_CWD_FG=${POWERLINE_CWD_FG:-white}
+POWERLINE_GIT_BG=${POWERLINE_GIT_BG:-235}
+POWERLINE_GIT_FG=${POWERLINE_GIT_FG:-250}
+
+_prompt_text() {
+  print -P -- "$1"
 }
 
-git_dirty() {
-  st=$($git status 2>/dev/null | tail -n 1)
-  if [[ $st == "" ]]
-  then
-    echo ""
+_prompt_segment() {
+  local bg="$1"
+  local fg="$2"
+  local text="$3"
+
+  [[ -z "$text" ]] && return
+  print -n "%K{$bg}%F{$fg} ${text} %k%F{$bg}${POWERLINE_LEFT_SEPARATOR}%f"
+}
+
+_prompt_identity() {
+  if [[ -n "$SSH_CONNECTION" ]]; then
+    _prompt_text "%n@%m"
   else
-    if [[ "$st" =~ ^nothing ]]
-    then
-      echo "on %{$fg_bold[green]%}$(git_prompt_info)%{$reset_color%}"
-    else
-      echo "on %{$fg_bold[red]%}$(git_prompt_info)%{$reset_color%}"
-    fi
+    _prompt_text "%n"
   fi
 }
 
-git_prompt_info () {
- ref=$($git symbolic-ref HEAD 2>/dev/null) || return
-# echo "(%{\e[0;33m%}${ref#refs/heads/}%{\e[0m%})"
- echo "${ref#refs/heads/}"
-}
+_prompt_git_branch() {
+  command git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return
 
-unpushed () {
-  $git cherry -v @{upstream} 2>/dev/null
-}
+  local branch dirty ahead behind git_status
+  branch=$(command git symbolic-ref --quiet --short HEAD 2>/dev/null)
+  [[ -n "$branch" ]] || branch=$(command git rev-parse --short HEAD 2>/dev/null)
+  [[ -n "$branch" ]] || return
 
-need_push () {
-  if [[ $(unpushed) == "" ]]
-  then
-    echo " "
-  else
-    echo " with %{$fg_bold[magenta]%}unpushed%{$reset_color%} "
+  git_status=$(command git status --porcelain=v1 --branch 2>/dev/null)
+  [[ "$git_status" == *$'\n'* ]] && dirty=" *"
+
+  if [[ "$git_status" == '## '*"ahead "* ]]; then
+    ahead=" ↑"
   fi
-}
-
-ruby_version() {
-  if (( $+commands[rbenv] ))
-  then
-    echo "$(rbenv version | awk '{print $1}')"
+  if [[ "$git_status" == '## '*"behind "* ]]; then
+    behind=" ↓"
   fi
 
-  if (( $+commands[rvm-prompt] ))
-  then
-    echo "$(rvm-prompt | awk '{print $1}')"
-  fi
+  print -r -- "git:${branch}${dirty}${ahead}${behind}"
 }
 
-rb_prompt() {
-  if ! [[ -z "$(ruby_version)" ]]
-  then
-    echo "%{$fg_bold[yellow]%}$(ruby_version)%{$reset_color%} "
-  else
-    echo ""
-  fi
+_prompt_left() {
+  _prompt_segment "$POWERLINE_USER_BG" "$POWERLINE_USER_FG" "$(_prompt_identity)"
+  _prompt_segment "$POWERLINE_CWD_BG" "$POWERLINE_CWD_FG" "%~"
+  _prompt_segment "$POWERLINE_GIT_BG" "$POWERLINE_GIT_FG" "$(_prompt_git_branch)"
+  print -n " "
 }
 
-source ${0:a:h}/oh-my-zsh/plugins/shrink-path/shrink-path.plugin.zsh
-directory_name() {
-  echo "%{$fg_bold[cyan]%}$(shrink_path -f)%{$reset_color%}"
+_prompt_exit_status() {
+  local exit_code="$1"
+  (( exit_code == 0 )) && return
+  print -n "%F{red}${exit_code}%f "
 }
 
-hostname_prompt() {
-  if command -v scutil > /dev/null 2>&1; then
-    echo "$(scutil --get ComputerName) "
-  else
-    echo "$(hostname) "
-  fi
+_prompt_runtime() {
+  local parts=()
+
+  [[ -n "$CONDA_DEFAULT_ENV" ]] && parts+=("conda:$CONDA_DEFAULT_ENV")
+  [[ -n "$VIRTUAL_ENV" ]] && parts+=("venv:${VIRTUAL_ENV:t}")
+  [[ -n "$AWS_PROFILE" ]] && parts+=("aws:$AWS_PROFILE")
+  [[ -n "$KUBECONFIG" ]] && parts+=("kube")
+
+  (( ${#parts} )) && print -n "%F{244}${(j: :)parts}%f "
 }
-# Custom prompt
-export PROMPT=$'\n$(hostname_prompt)$(rb_prompt)in $(directory_name) $(git_dirty)$(need_push)\n› '
-set_prompt () {
-  export RPROMPT="%{$fg_bold[cyan]%}%{$reset_color%}"
+
+_prompt_right() {
+  local last_status="$?"
+  _prompt_exit_status "$last_status"
+  _prompt_runtime
+  print -n "%F{244}%D{%H:%M}%f"
 }
+
+PROMPT='$(_prompt_left)'
+RPROMPT='$(_prompt_right)'
+DOTFILES_PROMPT_MODE=native-fallback
 
 precmd() {
   title "zsh" "%m" "%55<...<%~"
-  set_prompt
 }

@@ -1,16 +1,20 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -o nounset
-set -o errexit
-#set -o pipefail
-set -e
+set -euo pipefail
 
-# If we're on a Mac, let's install and setup homebrew.
-UNAMESTR=`uname`
-if [ "$UNAMESTR" == 'Darwin' ]; then
-  brew install pyenv
-  brew install pipenv
-else
-  # Install pyenv on Ubuntu
-  curl -fsSL https://pyenv.run | bash
-fi
+case "$(uname -s)" in
+  Darwin)
+    if command -v brew >/dev/null 2>&1; then
+      brew install pyenv pipenv pipx
+    fi
+    ;;
+  Linux)
+    if command -v pyenv >/dev/null 2>&1; then
+      exit 0
+    fi
+
+    if command -v curl >/dev/null 2>&1; then
+      curl -fsSL https://pyenv.run | bash || true
+    fi
+    ;;
+esac

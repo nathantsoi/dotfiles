@@ -1,7 +1,15 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-UNAMESTR=`uname`
-git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf || 1
-~/.fzf/install
+set -euo pipefail
 
-exit 0
+if command -v fzf >/dev/null 2>&1 && fzf --zsh >/dev/null 2>&1; then
+  exit 0
+fi
+
+if [[ -d "$HOME/.fzf/.git" ]]; then
+  git -C "$HOME/.fzf" pull --ff-only || true
+else
+  git clone --depth 1 https://github.com/junegunn/fzf.git "$HOME/.fzf"
+fi
+
+"$HOME/.fzf/install" --all --no-bash --no-fish

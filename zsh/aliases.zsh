@@ -4,6 +4,92 @@ alias reload!='. ~/.zshrc'
 ggrep () { git grep $* }
 grepr () { grep -r $* * }
 
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias -- -='cd -'
+alias path='print -l $path'
+alias h='history 1'
+alias mkdir='mkdir -p'
+
+if command -v eza >/dev/null 2>&1; then
+  alias ls='eza --group-directories-first --icons=auto'
+  alias l='eza -lah --group-directories-first --icons=auto'
+  alias ll='eza -lh --group-directories-first --icons=auto'
+  alias la='eza -la --group-directories-first --icons=auto'
+  alias tree='eza --tree --group-directories-first --icons=auto'
+elif command -v exa >/dev/null 2>&1; then
+  alias ls='exa --group-directories-first'
+  alias l='exa -lah --group-directories-first'
+  alias ll='exa -lh --group-directories-first'
+  alias la='exa -la --group-directories-first'
+fi
+
+if command -v rg >/dev/null 2>&1; then
+  alias rgrep='rg'
+fi
+
+if command -v fd >/dev/null 2>&1; then
+  alias ffind='fd'
+elif command -v fdfind >/dev/null 2>&1; then
+  alias ffind='fdfind'
+fi
+
+if command -v bat >/dev/null 2>&1; then
+  alias b='bat'
+  alias c='bat --paging=never'
+elif command -v batcat >/dev/null 2>&1; then
+  alias b='batcat'
+  alias c='batcat --paging=never'
+fi
+
+mkcd() {
+  command mkdir -p "$1" && cd "$1"
+}
+
+take() {
+  mkcd "$@"
+}
+
+up() {
+  local count="${1:-1}"
+  local path=""
+  while (( count-- > 0 )); do
+    path+="../"
+  done
+  cd "$path"
+}
+
+cdf() {
+  local dir
+  dir=$(command find . -type d 2>/dev/null | fzf --height=40% --reverse) && cd "$dir"
+}
+
+ff() {
+  local file
+  if command -v fd >/dev/null 2>&1; then
+    file=$(fd --type f --hidden --follow --exclude .git 2>/dev/null | fzf --height=40% --reverse)
+  elif command -v fdfind >/dev/null 2>&1; then
+    file=$(fdfind --type f --hidden --follow --exclude .git 2>/dev/null | fzf --height=40% --reverse)
+  elif command -v rg >/dev/null 2>&1; then
+    file=$(rg --files --hidden --follow --glob '!.git/*' 2>/dev/null | fzf --height=40% --reverse)
+  else
+    file=$(command find . -type f 2>/dev/null | fzf --height=40% --reverse)
+  fi
+  [[ -n "$file" ]] && ${EDITOR:-vim} "$file"
+}
+
+fh() {
+  print -rl -- ${(f)"$(fc -l 1)"} | fzf --height=40% --reverse | sed 's/ *[0-9]* *//'
+}
+
+groot() {
+  local root
+  root=$(command git rev-parse --show-toplevel 2>/dev/null) && cd "$root"
+}
+
+alias j='z'
+
 # move without blowing away an existing file
 move() {
   suffix=0

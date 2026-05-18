@@ -1,29 +1,16 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-#echo "REBOOT!"
+set -euo pipefail
 
-# install vim
-UNAMESTR=`uname`
-if [ "$UNAMESTR" == 'Darwin' ]; then
-  brew install macvim
-  brew install the_silver_searcher fzf
-else
-  if [ -w /etc/passwd ] || sudo -v > /dev/null 2>&1; then
-    sudo apt-get install -y vim silversearcher-ag
-  else
-    echo "  Skipping vim/silversearcher-ag system installation (no root access)"
-  fi
-  git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
-  ~/.fzf/install --all
+if ! command -v vim >/dev/null 2>&1; then
+  echo "vim is not installed; run script/bootstrap first" >&2
+  exit 0
 fi
 
-# install Plug bundles
-vim +PluginInstall +qall
+if [[ ! -f "$HOME/.vim/autoload/plug.vim" ]]; then
+  mkdir -p "$HOME/.vim/autoload"
+  curl -fLo "$HOME/.vim/autoload/plug.vim" \
+    https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+fi
 
-## build and install YouCompleteMe ext
-#YCM_PATH=~/.vim/bundle/YouCompleteMe
-#pushd $YCM_PATH
-#./install.py --tern-completer --clang-completer
-#popd
-
-exit 0
+vim +PlugInstall +qall

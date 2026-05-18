@@ -1,29 +1,20 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-VERSION=2021.07.20.00
+set -euo pipefail
 
-set -e
-set -x
-
-# install mirror
-UNAMESTR=`uname`
-if [ "$UNAMESTR" == 'Darwin' ]; then
-  brew install watchman
-else
-  if [ -w /etc/passwd ] || sudo -v > /dev/null 2>&1; then
-    mkdir watchman
-    pushd watchman
-    wget https://github.com/facebook/watchman/releases/download/v${VERSION}/watchman-v${VERSION}-linux.zip
-    unzip watchman-v${VERSION}-linux.zip
-    cd watchman-v${VERSION}-linux
-    sudo mkdir -p /usr/local/{bin,lib} /usr/local/var/run/watchman
-    sudo cp bin/* /usr/local/bin
-    sudo cp lib/* /usr/local/lib
-    sudo chmod 755 /usr/local/bin/watchman
-    sudo chmod 2777 /usr/local/var/run/watchman
-    popd
-    rm -rf watchman
-  else
-    echo "  Skipping watchman installation (no root access)"
-  fi
-fi
+case "$(uname -s)" in
+  Darwin)
+    if command -v brew >/dev/null 2>&1; then
+      brew install watchman
+    fi
+    ;;
+  Linux)
+    if command -v apt-get >/dev/null 2>&1; then
+      if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
+        apt-get install -y watchman || true
+      elif sudo -v >/dev/null 2>&1; then
+        sudo apt-get install -y watchman || true
+      fi
+    fi
+    ;;
+esac

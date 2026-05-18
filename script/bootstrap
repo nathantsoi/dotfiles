@@ -1,160 +1,409 @@
 #!/usr/bin/env bash
 #
-# bootstrap installs things.
+# Bootstrap dotfiles, shell dependencies, and symlinks.
 
-DOTFILES_ROOT="`pwd`"
+set -euo pipefail
 
-set -e
+DOTFILES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OS="$(uname -s)"
 
-echo ''
-
-info () {
-  printf "  [ \033[00;34m..\033[0m ] $1"
+info() {
+  printf "  [ \033[00;34m..\033[0m ] %s\n" "$1"
 }
 
-user () {
-  printf "\r  [ \033[0;33m?\033[0m ] $1 "
+user() {
+  printf "  [ \033[0;33m?\033[0m ] %s " "$1"
 }
 
-success () {
-  printf "\r\033[2K  [ \033[00;32mOK\033[0m ] $1\n"
+success() {
+  printf "  [ \033[00;32mOK\033[0m ] %s\n" "$1"
 }
 
-fail () {
-  printf "\r\033[2K  [\033[0;31mFAIL\033[0m] $1\n"
-  echo ''
-  exit
+warn() {
+  printf "  [ \033[0;33m!!\033[0m ] %s\n" "$1"
 }
 
-setup_gitconfig () {
-  if ! [ -f git/gitconfig.symlink ]
-  then
-    info 'setup gitconfig'
+fail() {
+  printf "  [\033[0;31mFAIL\033[0m] %s\n" "$1"
+  exit 1
+}
 
-    git_credential='cache'
-    if [ "$(uname -s)" == "Darwin" ]
-    then
-      git_credential='osxkeychain'
-    fi
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
 
-    user ' - What is your github author name?'
-    read -e git_authorname
-    user ' - What is your github author email?'
-    read -e git_authoremail
+can_sudo() {
+  [[ ${EUID:-$(id -u)} -eq 0 ]] || { have sudo && (sudo -n true >/dev/null 2>&1 || sudo -v >/dev/null 2>&1); }
+}
 
-    sed -e "s/AUTHORNAME/$git_authorname/g" -e "s/AUTHOREMAIL/$git_authoremail/g" -e "s/GIT_CREDENTIAL_HELPER/$git_credential/g" git/gitconfig.symlink.example > git/gitconfig.symlink
-
-    success 'gitconfig'
+run_as_root() {
+  if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
+    "$@"
+  else
+    sudo "$@"
   fi
 }
 
-link_files () {
-  ln -s $1 $2
-  success "linked $1 to $2"
+install_homebrew() {
+  if have brew; then
+    return
+  fi
+
+  info "installing Homebrew"
+  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+  if [[ -x /opt/homebrew/bin/brew ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  elif [[ -x /usr/local/bin/brew ]]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+  fi
+
+  have brew || fail "Homebrew installed, but brew is not on PATH"
 }
 
-install_dotfiles () {
-  info 'installing dotfiles'
+install_macos_packages() {
+  install_homebrew
 
-  overwrite_all=false
-  backup_all=false
-  skip_all=false
+  local packages=(
+    awscli
+    bash
+    bat
+    bottom
+    cmake
+    coreutils
+    direnv
+    duf
+    dust
+    eza
+    fd
+    ffmpeg
+    fzf
+    gh
+    git
+    git-delta
+    gnu-sed
+    grc
+    httpie
+    imagemagick
+    jq
+    ncdu
+    node
+    nvm
+    pipx
+    pipenv
+    python@3.13
+    pyenv
+    rclone
+    rbenv
+    readline
+    ripgrep
+    shellcheck
+    shfmt
+    sqlite
+    the_silver_searcher
+    tlrc
+    tmux
+    tree
+    uv
+    watchman
+    yq
+    yt-dlp
+    zsh
+  )
 
-  for source in `find $DOTFILES_ROOT -maxdepth 2 -name \*.symlink`
-  do
-    dest="$HOME/.`basename \"${source%.*}\"`"
+  local missing=()
+  local package
+  for package in "${packages[@]}"; do
+    if ! brew list --formula "$package" >/dev/null 2>&1; then
+      missing+=("$package")
+    fi
+  done
 
-    if [ -f $dest ] || [ -d $dest ]
-    then
+  if ! brew list --formula vim >/dev/null 2>&1 && ! brew list --formula macvim >/dev/null 2>&1; then
+    missing+=(vim)
+  fi
+
+  if (( ${#missing[@]} )); then
+    info "installing missing Homebrew packages: ${missing[*]}"
+    brew install "${missing[@]}"
+  else
+    success "Homebrew packages already installed"
+  fi
+
+  local cask
+  for cask in font-inconsolata font-jetbrains-mono-nerd-font miniforge; do
+    if ! brew list --cask "$cask" >/dev/null 2>&1; then
+      brew install --cask "$cask" || warn "could not install $cask cask"
+    fi
+  done
+}
+
+install_linux_packages() {
+  if ! have apt-get; then
+    warn "Linux dependency install currently supports apt-get only"
+    return
+  fi
+
+  if ! can_sudo; then
+    warn "no sudo/root access; skipping system package installation"
+    return
+  fi
+
+  local required=(
+    bash
+    build-essential
+    ca-certificates
+    cmake
+    curl
+    fonts-powerline
+    fonts-firacode
+    fzf
+    git
+    httpie
+    imagemagick
+    jq
+    ncdu
+    nodejs
+    npm
+    pipx
+    python3
+    python3-pip
+    python3-venv
+    ripgrep
+    shellcheck
+    shfmt
+    silversearcher-ag
+    sqlite3
+    tmux
+    tree
+    vim
+    zsh
+  )
+
+  local optional=(
+    bat
+    bottom
+    direnv
+    duf
+    dust
+    eza
+    exa
+    ffmpeg
+    fd-find
+    gh
+    git-delta
+    postgresql-client
+    rclone
+    tldr
+    uv
+    watchman
+    yq
+    yt-dlp
+  )
+
+  info "installing apt packages"
+  run_as_root apt-get update
+  run_as_root apt-get install -y "${required[@]}"
+
+  local package
+  for package in "${optional[@]}"; do
+    run_as_root apt-get install -y "$package" || warn "optional apt package unavailable: $package"
+  done
+}
+
+install_python_tools() {
+  if have pipx; then
+    info "installing pipx tools"
+    local powerline_python=""
+    if have python3.13; then
+      powerline_python="$(command -v python3.13)"
+    elif have python3.12; then
+      powerline_python="$(command -v python3.12)"
+    elif have python3; then
+      powerline_python="$(command -v python3)"
+    fi
+
+    pipx ensurepath --force >/dev/null 2>&1 || true
+    if ! pipx list --short 2>/dev/null | grep -Eq "^powerline-status([[:space:]]|$)"; then
+      if [[ -n "$powerline_python" ]]; then
+        pipx install powerline-status --python "$powerline_python" || true
+      else
+        pipx install powerline-status || true
+      fi
+    fi
+    pipx inject powerline-status powerline-gitstatus >/dev/null 2>&1 || true
+  else
+    warn "pipx unavailable; skipping Python CLI tools"
+  fi
+}
+
+install_fzf_integration() {
+  if have fzf; then
+    info "installing fzf shell integration"
+    if fzf --zsh >/dev/null 2>&1; then
+      success "fzf integration"
+      return
+    fi
+  fi
+
+  if [[ -d "$HOME/.fzf/.git" ]]; then
+    info "updating ~/.fzf"
+    git -C "$HOME/.fzf" pull --ff-only || true
+  else
+    info "installing ~/.fzf from upstream"
+    git clone --depth 1 https://github.com/junegunn/fzf.git "$HOME/.fzf" || {
+      warn "could not clone fzf"
+      return
+    }
+  fi
+
+  "$HOME/.fzf/install" --all --no-bash --no-fish || warn "fzf install script failed"
+}
+
+setup_gitconfig() {
+  cd "$DOTFILES_ROOT"
+
+  if [[ -f git/gitconfig.symlink ]]; then
+    return
+  fi
+
+  info "setup gitconfig"
+
+  local git_credential="cache"
+  if [[ "$OS" == "Darwin" ]]; then
+    git_credential="osxkeychain"
+  fi
+
+  local git_authorname git_authoremail
+  user "What is your github author name?"
+  read -r git_authorname
+  user "What is your github author email?"
+  read -r git_authoremail
+
+  sed \
+    -e "s/AUTHORNAME/$git_authorname/g" \
+    -e "s/AUTHOREMAIL/$git_authoremail/g" \
+    -e "s/GIT_CREDENTIAL_HELPER/$git_credential/g" \
+    git/gitconfig.symlink.example > git/gitconfig.symlink
+
+  success "gitconfig"
+}
+
+link_file() {
+  local source="$1"
+  local dest="$2"
+
+  ln -s "$source" "$dest"
+  success "linked $source to $dest"
+}
+
+install_dotfiles() {
+  cd "$DOTFILES_ROOT"
+  info "installing dotfiles"
+
+  local overwrite_all=false
+  local backup_all=false
+  local skip_all=false
+  local source dest overwrite backup skip action
+
+  while IFS= read -r source; do
+    dest="$HOME/.${source##*/}"
+    dest="${dest%.symlink}"
+
+    if [[ -e "$dest" || -L "$dest" ]]; then
+      if [[ -L "$dest" && "$(readlink "$dest")" == "$source" ]]; then
+        success "already linked $dest"
+        continue
+      fi
 
       overwrite=false
       backup=false
       skip=false
 
-      if [ "$overwrite_all" == "false" ] && [ "$backup_all" == "false" ] && [ "$skip_all" == "false" ]
-      then
-        user "File already exists: `basename $source`, what do you want to do? [s]kip, [S]kip all, [o]verwrite, [O]verwrite all, [b]ackup, [B]ackup all?"
-        read -n 1 action
+      if [[ "$overwrite_all" == false && "$backup_all" == false && "$skip_all" == false ]]; then
+        if [[ -t 0 ]]; then
+          user "File exists: ${dest}. [s]kip, [S]kip all, [o]verwrite, [O]verwrite all, [b]ackup, [B]ackup all?"
+          read -r -n 1 action
+          printf "\n"
+        else
+          action="${DOTFILES_EXISTING_FILE_ACTION:-s}"
+          warn "non-interactive run; defaulting existing file action for $dest to '$action'"
+        fi
 
         case "$action" in
-          o )
-            overwrite=true;;
-          O )
-            overwrite_all=true;;
-          b )
-            backup=true;;
-          B )
-            backup_all=true;;
-          s )
-            skip=true;;
-          S )
-            skip_all=true;;
-          * )
-            ;;
+          o) overwrite=true ;;
+          O) overwrite_all=true ;;
+          b) backup=true ;;
+          B) backup_all=true ;;
+          s) skip=true ;;
+          S) skip_all=true ;;
+          *) skip=true ;;
         esac
       fi
 
-      if [ "$overwrite" == "true" ] || [ "$overwrite_all" == "true" ]
-      then
-        rm -rf $dest
+      if [[ "$overwrite" == true || "$overwrite_all" == true ]]; then
+        rm -rf "$dest"
         success "removed $dest"
       fi
 
-      if [ "$backup" == "true" ] || [ "$backup_all" == "true" ]
-      then
-        mv $dest $dest\.backup
+      if [[ "$backup" == true || "$backup_all" == true ]]; then
+        mv "$dest" "$dest.backup"
         success "moved $dest to $dest.backup"
       fi
 
-      if [ "$skip" == "false" ] && [ "$skip_all" == "false" ]
-      then
-        link_files $source $dest
+      if [[ "$skip" == false && "$skip_all" == false ]]; then
+        link_file "$source" "$dest"
       else
         success "skipped $source"
       fi
-
     else
-      link_files $source $dest
+      link_file "$source" "$dest"
     fi
-
-  done
+  done < <(find "$DOTFILES_ROOT" -maxdepth 2 -name "*.symlink" -not -path "*/oh-my-zsh/*" | sort)
 }
 
-setup_gitconfig
-install_dotfiles
+fix_zsh_permissions() {
+  chmod -R go-w "$DOTFILES_ROOT/zsh" "$DOTFILES_ROOT/functions" 2>/dev/null || true
+}
 
-# If we're on a Mac, let's install and setup homebrew.
-if [ "$(uname -s)" == "Darwin" ]
-then
-  info "installing dependencies"
-  if source bin/dot > /tmp/dotfiles-dot 2>&1
-  then
-    success "dependencies installed"
-  else
-    fail "error installing dependencies"
+set_default_shell() {
+  local zsh_path
+  zsh_path="$(command -v zsh || true)"
+  [[ -n "$zsh_path" ]] || return
+
+  if ! grep -qx "$zsh_path" /etc/shells 2>/dev/null && can_sudo; then
+    echo "$zsh_path" | run_as_root tee -a /etc/shells >/dev/null
   fi
-fi
 
-# install zsh
-if [ "$(uname -s)" == "Darwin" ]; then
-  brew install zsh
-elif [ -w /etc/passwd ] || sudo -v > /dev/null 2>&1; then
-  sudo apt install -y zsh
-else
-  echo "  Skipping zsh installation (no root access)"
-fi
+  if [[ "${SHELL:-}" != "$zsh_path" ]]; then
+    if can_sudo; then
+      chsh -s "$zsh_path" "$USER" || warn "could not change shell automatically"
+    else
+      warn "skipping chsh; set shell manually to $zsh_path"
+    fi
+  fi
+}
 
-# Fix potential zsh insecure directories
-if [ -d "$HOME/.dotfiles" ]; then
-    chmod -R g-w,o-w "$HOME/.dotfiles"
-fi
+main() {
+  cd "$DOTFILES_ROOT"
 
-# Install zsh
-if [ -w /etc/passwd ] || sudo -v > /dev/null 2>&1; then
-    chsh -s $(which zsh)
-else
-    echo "  Skipping chsh (no root access), please set shell manually if needed."
-fi
+  case "$OS" in
+    Darwin) install_macos_packages ;;
+    Linux) install_linux_packages ;;
+    *) warn "unsupported OS for package installation: $OS" ;;
+  esac
 
-echo ''
-echo '  All installed!'
+  install_python_tools
+  install_fzf_integration
+  setup_gitconfig
+  install_dotfiles
+  fix_zsh_permissions
+  set_default_shell
+
+  echo ""
+  success "all installed"
+  echo "  Open a new shell or run: reload!"
+  echo "  Explore features with: shell-help"
+}
+
+main "$@"

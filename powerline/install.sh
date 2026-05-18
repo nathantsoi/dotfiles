@@ -1,30 +1,51 @@
-#!/bin/bash
-DEST=$HOME/Downloads/inconsolata-powerline.otf
-curl https://github.com/powerline/fonts/blob/master/Inconsolata-g/Inconsolata-g%20for%20Powerline.otf?raw=true -o $DEST
-#open $DEST
+#!/usr/bin/env bash
 
-UNAMESTR=`uname`
-if [ "$UNAMESTR" == 'Darwin' ]; then
-  # Install powerline-status using pip3 --user so it's accessible to vim's python
-  # Use --break-system-packages for modern macOS Python environments
-  pip3 install --user --break-system-packages powerline-status
-  pip3 install --user --break-system-packages powerline-gitstatus
-else
-  if [ -w /etc/passwd ] || sudo -v > /dev/null 2>&1; then
-    sudo apt install -y pipx
-  else
-    echo "  Skipping pipx system installation (no root access)"
+set -euo pipefail
+
+if command -v pipx >/dev/null 2>&1; then
+  pipx ensurepath --force >/dev/null 2>&1 || true
+  powerline_python=""
+  if command -v python3.13 >/dev/null 2>&1; then
+    powerline_python="$(command -v python3.13)"
+  elif command -v python3.12 >/dev/null 2>&1; then
+    powerline_python="$(command -v python3.12)"
+  elif command -v python3 >/dev/null 2>&1; then
+    powerline_python="$(command -v python3)"
   fi
-  
-  if command -v pipx >/dev/null 2>&1; then
-      pipx install powerline-status
-      pipx inject powerline-status powerline-gitstatus
+
+  if pipx list --short 2>/dev/null | grep -Eq "^powerline-status([[:space:]]|$)"; then
+    :
+  elif [[ -n "$powerline_python" ]]; then
+    pipx install powerline-status --python "$powerline_python" || true
   else
-      # Fallback to user install if pipx is not available
-      pip3 install --user powerline-status powerline-gitstatus
+    pipx install powerline-status || true
   fi
+  pipx inject powerline-status powerline-gitstatus >/dev/null 2>&1 || true
+elif command -v pip3 >/dev/null 2>&1; then
+  pip3 install --user powerline-status powerline-gitstatus || true
 fi
 
-CONFIGDIR=$HOME/.config
-mkdir -p $CONFIGDIR
-ln -sf $HOME/.local/share/pipx/venvs/powerline-status/lib/python3.12/site-packages/powerline/config/powerline.symlink $CONFIGDIR/powerline
+CONFIGDIR="${XDG_CONFIG_HOME:-$HOME/.config}"
+mkdir -p "$CONFIGDIR"
+
+if [[ -d "$HOME/.local/pipx/venvs/powerline-status/lib" ]]; then
+  powerline_config=$(find "$HOME/.local/pipx/venvs/powerline-status/lib" -path "*/site-packages/powerline/config" -type d 2>/dev/null | head -n 1)
+elif [[ -d "$HOME/.local/share/pipx/venvs/powerline-status/lib" ]]; then
+  powerline_config=$(find "$HOME/.local/share/pipx/venvs/powerline-status/lib" -path "*/site-packages/powerline/config" -type d 2>/dev/null | head -n 1)
+fi
+
+if [[ -n "${powerline_config:-}" && ! -e "$CONFIGDIR/powerline" && ! -L "$CONFIGDIR/powerline" ]]; then
+  ln -sfn "$powerline_config" "$CONFIGDIR/powerline"
+fi
+
+if [[ -n "${POWERLINE_BINDINGS_DIR:-}" ]]; then
+  :
+elif [[ -d "$HOME/.local/pipx/venvs/powerline-status/lib" ]]; then
+  POWERLINE_BINDINGS_DIR=$(find "$HOME/.local/pipx/venvs/powerline-status/lib" -path "*/site-packages/powerline/bindings" -type d 2>/dev/null | head -n 1)
+elif [[ -d "$HOME/.local/share/pipx/venvs/powerline-status/lib" ]]; then
+  POWERLINE_BINDINGS_DIR=$(find "$HOME/.local/share/pipx/venvs/powerline-status/lib" -path "*/site-packages/powerline/bindings" -type d 2>/dev/null | head -n 1)
+fi
+
+if [[ -n "${POWERLINE_BINDINGS_DIR:-}" ]]; then
+  ln -sfn "$POWERLINE_BINDINGS_DIR" "$HOME/.powerlinebindings"
+fi

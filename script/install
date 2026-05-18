@@ -1,29 +1,24 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
-# Run all dotfiles installers.
+# Run topic-specific dotfiles installers after bootstrap has installed packages.
 
-#set -o nounset
-#set -o errexit
-#set -o pipefail
-set -e
+set -euo pipefail
 
-cd "$(dirname $0)"/..
+DOTFILES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$DOTFILES_ROOT"
 
-UNAMESTR=`uname`
-if [ "$UNAMESTR" == 'Darwin' ]; then
-  brew install git
+if ! command -v git >/dev/null 2>&1; then
+  echo "git is required; run script/bootstrap first" >&2
+  exit 1
 fi
 
-if [ "$UNAMESTR" == 'Linux' ]; then
-  # just skip if we don't have root
-  if [ -w /etc/passwd ] || sudo -v > /dev/null 2>&1; then
-    sudo apt install -y git || 1
-  else
-    echo "  Skipping git installation (no root access)"
-  fi
-fi
-
-# find the installers and run them iteratively
-
-#find . -maxdepth 2 -name install.sh -prune | while read installer ; do echo "INSTALLING $installer" && sh -c "${installer}" ; done
-find . -maxdepth 2 -name install.sh -prune -exec bash -c "{}" \;
+find . \
+  -maxdepth 2 \
+  -name install.sh \
+  -not -path "./homebrew/*" \
+  -not -path "./debian/*" \
+  -print0 |
+while IFS= read -r -d '' installer; do
+  echo "INSTALLING $installer"
+  bash "$installer"
+done

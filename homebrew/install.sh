@@ -1,39 +1,80 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
-# Homebrew
-#
-# This installs some of the common dependencies needed (or at least desired)
-# using Homebrew.
+# Homebrew package installation is handled by script/bootstrap.
 
-UNAMESTR=`uname`
-if [ "$UNAMESTR" != 'Darwin' ]; then
-  echo "not on a mac"
-  exit
+set -euo pipefail
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  exit 0
 fi
 
-# Check for Homebrew
-if test ! $(which brew)
-then
-  echo "  Installing Homebrew for you."
-  ruby -e "$(curl -fsSL https://raw.github.com/Homebrew/homebrew/go/install)" > /tmp/homebrew-install.log
+if ! command -v brew >/dev/null 2>&1; then
+  echo "Homebrew is not installed; run script/bootstrap first" >&2
+  exit 0
 fi
 
-# Install homebrew packages
-brew install trash
-brew install Caskroom/cask/java
-brew install cmake git readline sqlite exiftool awscli
-brew install aspell --with-all-langs
-brew install nvm nodejs rbenv
-brew install elasticsearch postgres redis mysql mongo
-brew install grc coreutils spark
-# gsed
-brew install gnu-sed
-brew install imagemagick
-brew install cowsay fortune
-brew install the_silver_searcher
-brew install gifsicle
-brew install exiv2 ffmpeg
+packages=(
+  awscli
+  bat
+  bottom
+  cmake
+  coreutils
+  direnv
+  duf
+  dust
+  eza
+  fd
+  ffmpeg
+  fzf
+  gh
+  git
+  git-delta
+  gnu-sed
+  grc
+  httpie
+  imagemagick
+  jq
+  ncdu
+  node
+  nvm
+  pipx
+  pipenv
+  python@3.13
+  pyenv
+  rclone
+  rbenv
+  ripgrep
+  shellcheck
+  shfmt
+  sqlite
+  the_silver_searcher
+  tlrc
+  tmux
+  tree
+  uv
+  watchman
+  yq
+  yt-dlp
+  zsh
+)
 
-fortune|cowsay
+missing=()
+for package in "${packages[@]}"; do
+  if ! brew list --formula "$package" >/dev/null 2>&1; then
+    missing+=("$package")
+  fi
+done
 
-exit 0
+if ! brew list --formula vim >/dev/null 2>&1 && ! brew list --formula macvim >/dev/null 2>&1; then
+  missing+=(vim)
+fi
+
+if (( ${#missing[@]} )); then
+  brew install "${missing[@]}"
+fi
+
+for cask in font-inconsolata font-jetbrains-mono-nerd-font miniforge; do
+  if ! brew list --cask "$cask" >/dev/null 2>&1; then
+    brew install --cask "$cask" || true
+  fi
+done

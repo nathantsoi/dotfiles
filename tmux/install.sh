@@ -1,14 +1,20 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# https://github.com/ChrisJohnsen/tmux-MacOSX-pasteboard
+set -euo pipefail
 
-UNAMESTR=$(uname)
-if [ "$UNAMESTR" == 'Darwin' ]; then
-  brew install reattach-to-user-namespace
-else
-  if [ -w /etc/passwd ] || sudo -v > /dev/null 2>&1; then
-    sudo apt install -y tmux
-  else
-    echo "  Skipping tmux installation (no root access)"
-  fi
-fi
+case "$(uname -s)" in
+  Darwin)
+    if command -v brew >/dev/null 2>&1; then
+      brew install tmux reattach-to-user-namespace
+    fi
+    ;;
+  Linux)
+    if command -v apt-get >/dev/null 2>&1; then
+      if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
+        apt-get install -y tmux
+      elif sudo -v >/dev/null 2>&1; then
+        sudo apt-get install -y tmux
+      fi
+    fi
+    ;;
+esac
