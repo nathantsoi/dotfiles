@@ -1,9 +1,7 @@
 # Setup fzf
 # ---------
-if [[ -d "$HOME/.fzf/bin" && ! "$PATH" == *"$HOME/.fzf/bin"* ]]; then
-  PATH="${PATH:+${PATH}:}$HOME/.fzf/bin"
+if [[ ! "$PATH" == */home/ntsoi/.fzf/bin* ]]; then
+  PATH="${PATH:+${PATH}:}/home/ntsoi/.fzf/bin"
 fi
 
-if [[ -t 0 ]] && command -v fzf >/dev/null 2>&1; then
-  source <(fzf --zsh)
-fi
+source <(fzf --zsh)
