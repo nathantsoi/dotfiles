@@ -44,6 +44,11 @@ run_as_root() {
   fi
 }
 
+apt_install_one() {
+  local package="$1"
+  run_as_root apt-get install -y "$package"
+}
+
 install_homebrew() {
   if have brew; then
     return
@@ -155,26 +160,20 @@ install_linux_packages() {
     ca-certificates
     cmake
     curl
+    fontconfig
     fonts-powerline
     fonts-firacode
     fzf
     git
-    httpie
-    imagemagick
     jq
-    ncdu
-    nodejs
     pipx
     python3
     python3-pip
     python3-venv
     ripgrep
-    shellcheck
-    shfmt
-    silversearcher-ag
-    sqlite3
     tmux
     tree
+    unzip
     vim
     zsh
   )
@@ -191,8 +190,17 @@ install_linux_packages() {
     fd-find
     gh
     git-delta
+    httpie
+    imagemagick
+    ncdu
+    nodejs
+    npm
     postgresql-client
     rclone
+    shellcheck
+    shfmt
+    silversearcher-ag
+    sqlite3
     tldr
     uv
     watchman
@@ -202,12 +210,97 @@ install_linux_packages() {
 
   info "installing apt packages"
   run_as_root apt-get update
-  run_as_root apt-get install -y "${required[@]}"
 
   local package
-  for package in "${optional[@]}"; do
-    run_as_root apt-get install -y "$package" || warn "optional apt package unavailable: $package"
+  for package in "${required[@]}"; do
+    apt_install_one "$package" || warn "required apt package unavailable: $package"
   done
+
+  for package in "${optional[@]}"; do
+    apt_install_one "$package" || warn "optional apt package unavailable: $package"
+  done
+}
+
+install_linux_command_shims() {
+  [[ "$OS" == "Linux" ]] || return 0
+
+  mkdir -p "$HOME/.local/bin"
+
+  if ! have fd && have fdfind; then
+    ln -sfn "$(command -v fdfind)" "$HOME/.local/bin/fd"
+    success "linked fd -> fdfind"
+  fi
+
+  if ! have bat && have batcat; then
+    ln -sfn "$(command -v batcat)" "$HOME/.local/bin/bat"
+    success "linked bat -> batcat"
+  fi
+}
+
+install_linux_nerd_font() {
+  [[ "$OS" == "Linux" ]] || return 0
+  have curl || return 0
+  have unzip || return 0
+
+  local font_dir="$HOME/.local/share/fonts/JetBrainsMonoNerdFont"
+  if find "$font_dir" -name "*JetBrainsMono*Nerd*Font*.ttf" -print -quit 2>/dev/null | grep -q .; then
+    success "JetBrains Mono Nerd Font already installed"
+    return
+  fi
+
+  info "installing JetBrains Mono Nerd Font"
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+  curl -fsSL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip -o "$tmp_dir/JetBrainsMono.zip" || {
+    warn "could not download JetBrains Mono Nerd Font"
+    rm -rf "$tmp_dir"
+    return
+  }
+
+  mkdir -p "$font_dir"
+  unzip -oq "$tmp_dir/JetBrainsMono.zip" -d "$font_dir" || warn "could not unpack JetBrains Mono Nerd Font"
+  rm -rf "$tmp_dir"
+  have fc-cache && fc-cache -f "$HOME/.local/share/fonts" >/dev/null 2>&1 || true
+}
+
+install_linux_nvm() {
+  [[ "$OS" == "Linux" ]] || return 0
+  [[ -d "$HOME/.nvm/.git" ]] && return
+  have git || return 0
+
+  info "installing nvm"
+  git clone https://github.com/nvm-sh/nvm.git "$HOME/.nvm" || warn "could not install nvm"
+}
+
+install_linux_miniforge() {
+  [[ "$OS" == "Linux" ]] || return 0
+  if have conda || [[ -x "$HOME/miniforge3/bin/conda" ]] || [[ -x "$HOME/miniconda3/bin/conda" ]]; then
+    return
+  fi
+  have curl || return 0
+
+  local arch
+  case "$(uname -m)" in
+    x86_64|amd64) arch="x86_64" ;;
+    aarch64|arm64) arch="aarch64" ;;
+    *) warn "unsupported Miniforge architecture: $(uname -m)"; return ;;
+  esac
+
+  info "installing Miniforge"
+  local tmp_dir installer
+  tmp_dir="$(mktemp -d)"
+  installer="$tmp_dir/Miniforge3-Linux-${arch}.sh"
+  curl -fsSL "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${arch}.sh" -o "$installer" || {
+    warn "could not download Miniforge"
+    rm -rf "$tmp_dir"
+    return
+  }
+  bash "$installer" -b -p "$HOME/miniforge3" || warn "could not install Miniforge"
+  rm -rf "$tmp_dir"
+
+  if [[ -x "$HOME/miniforge3/bin/conda" ]]; then
+    "$HOME/miniforge3/bin/conda" config --set auto_activate_base false >/dev/null 2>&1 || true
+  fi
 }
 
 install_python_tools() {
@@ -231,8 +324,31 @@ install_python_tools() {
       fi
     fi
     pipx inject powerline-status powerline-gitstatus >/dev/null 2>&1 || true
+
+    if [[ "$OS" == "Linux" ]]; then
+      if ! have uv; then
+        pipx install uv >/dev/null 2>&1 || true
+      fi
+      if ! have yt-dlp; then
+        pipx install yt-dlp >/dev/null 2>&1 || true
+      fi
+    fi
   else
     warn "pipx unavailable; skipping Python CLI tools"
+  fi
+}
+
+install_powerline_config() {
+  local config_dir target
+  config_dir="${XDG_CONFIG_HOME:-$HOME/.config}"
+  target="$config_dir/powerline"
+  mkdir -p "$config_dir"
+
+  if [[ -L "$target" || ! -e "$target" ]]; then
+    ln -sfn "$DOTFILES_ROOT/powerline/config/powerline.symlink" "$target"
+    success "powerline config"
+  elif [[ -d "$target" ]]; then
+    warn "existing Powerline config directory left in place: $target"
   fi
 }
 
@@ -393,6 +509,11 @@ main() {
   esac
 
   install_python_tools
+  install_powerline_config
+  install_linux_command_shims
+  install_linux_nerd_font
+  install_linux_nvm
+  install_linux_miniforge
   install_fzf_integration
   setup_gitconfig
   install_dotfiles

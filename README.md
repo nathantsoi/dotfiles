@@ -9,9 +9,11 @@ git clone --recursive git@github.com:nathantsoi/dotfiles.git ~/.dotfiles
 cd ~/.dotfiles
 script/bootstrap
 script/install
+script/doctor
 ```
 
 Use `script/bootstrap` first. It installs system dependencies, sets up fzf integration, creates dotfile symlinks, and attempts to set Zsh as the login shell. Use `script/install` after bootstrap for topic-specific setup such as Vim plugins and optional language/tool integrations.
+Use `script/doctor` after either command to validate the shell, prompt, and installed tools.
 
 If you do not have sudo/root access on Linux, package installation and `chsh` are skipped, but symlinks are still created.
 
@@ -35,7 +37,7 @@ Other Linux package managers are not automated yet.
 - File watching: `watchman`
 - Prompt/fonts: Powerline-compatible fonts, JetBrains Mono Nerd Font on macOS, and `powerline-status`
 
-On Linux, package names vary by distro version. Optional packages such as `eza`, `exa`, `bat`, and `fd-find` are attempted individually and skipped if unavailable.
+On Linux, package names vary by distro version. Optional packages are attempted individually and skipped if unavailable. Bootstrap also normalizes common Ubuntu binary names by linking `fd` to `fdfind` and `bat` to `batcat` in `~/.local/bin` when needed.
 
 For `eza --icons` to render correctly, configure your terminal font to a Nerd Font. On macOS bootstrap installs `JetBrainsMono Nerd Font`; in iTerm2 set your profile font to `JetBrainsMono Nerd Font`.
 
@@ -53,6 +55,7 @@ shell-help search
 shell-help git
 shell-help tools
 shell-help doctor
+script/doctor
 ```
 
 Aliases:

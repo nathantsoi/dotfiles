@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+#
+# Validate the dotfiles setup after bootstrap/install.
+
+set -euo pipefail
+
+DOTFILES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+echo "Dotfiles doctor"
+echo
+
+echo "Script syntax"
+bash -n \
+  "$DOTFILES_ROOT/script/bootstrap" \
+  "$DOTFILES_ROOT/script/install" \
+  "$DOTFILES_ROOT/debian/install.sh" \
+  "$DOTFILES_ROOT/font/install.sh" \
+  "$DOTFILES_ROOT/fzf/install.sh" \
+  "$DOTFILES_ROOT/homebrew/install.sh" \
+  "$DOTFILES_ROOT/mirror/install.sh" \
+  "$DOTFILES_ROOT/powerline/install.sh" \
+  "$DOTFILES_ROOT/python/install.sh" \
+  "$DOTFILES_ROOT/ruby/install.sh" \
+  "$DOTFILES_ROOT/tmux/install.sh" \
+  "$DOTFILES_ROOT/vim/install.sh"
+echo "  ok bash scripts"
+
+if command -v zsh >/dev/null 2>&1; then
+  zsh -n \
+    "$DOTFILES_ROOT/zsh/zshrc.symlink" \
+    "$DOTFILES_ROOT/zsh/config.zsh" \
+    "$DOTFILES_ROOT/zsh/aliases.zsh" \
+    "$DOTFILES_ROOT/zsh/completion.zsh" \
+    "$DOTFILES_ROOT/zsh/help.zsh" \
+    "$DOTFILES_ROOT/zsh/prompt.zsh" \
+    "$DOTFILES_ROOT/powerline/paths.zsh"
+  echo "  ok zsh files"
+else
+  echo "  miss zsh"
+fi
+
+echo
+echo "Interactive shell"
+if command -v zsh >/dev/null 2>&1; then
+  zsh -i -c 'shell-help intro >/dev/null; shell-doctor'
+else
+  echo "  zsh unavailable; run script/bootstrap first"
+fi

@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+DOTFILES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 if command -v pipx >/dev/null 2>&1; then
   pipx ensurepath --force >/dev/null 2>&1 || true
   powerline_python=""
@@ -27,15 +29,10 @@ fi
 
 CONFIGDIR="${XDG_CONFIG_HOME:-$HOME/.config}"
 mkdir -p "$CONFIGDIR"
-
-if [[ -d "$HOME/.local/pipx/venvs/powerline-status/lib" ]]; then
-  powerline_config=$(find "$HOME/.local/pipx/venvs/powerline-status/lib" -path "*/site-packages/powerline/config" -type d 2>/dev/null | head -n 1)
-elif [[ -d "$HOME/.local/share/pipx/venvs/powerline-status/lib" ]]; then
-  powerline_config=$(find "$HOME/.local/share/pipx/venvs/powerline-status/lib" -path "*/site-packages/powerline/config" -type d 2>/dev/null | head -n 1)
-fi
-
-if [[ -n "${powerline_config:-}" && ! -e "$CONFIGDIR/powerline" && ! -L "$CONFIGDIR/powerline" ]]; then
-  ln -sfn "$powerline_config" "$CONFIGDIR/powerline"
+if [[ -L "$CONFIGDIR/powerline" || ! -e "$CONFIGDIR/powerline" ]]; then
+  ln -sfn "$DOTFILES_ROOT/powerline/config/powerline.symlink" "$CONFIGDIR/powerline"
+elif [[ -d "$CONFIGDIR/powerline" ]]; then
+  echo "Existing Powerline config directory left in place: $CONFIGDIR/powerline" >&2
 fi
 
 if [[ -n "${POWERLINE_BINDINGS_DIR:-}" ]]; then
