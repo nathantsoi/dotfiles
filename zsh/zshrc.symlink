@@ -321,3 +321,6 @@ path_prepend_if_exists "$HOME/src/claw-code/rust/target/release"
 
 # Created by `pipx` on 2026-05-18 14:43:08
 export PATH="$PATH:/Users/ntsoi/.local/bin"
+
+# Added by Antigravity IDE
+export PATH="/Users/ntsoi/.antigravity-ide/antigravity-ide/bin:$PATH"
