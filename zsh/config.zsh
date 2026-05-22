@@ -76,5 +76,11 @@ bindkey '^[^N' newtab
 bindkey '^?' backward-delete-char
 bindkey '^[[A' up-line-or-beginning-search
 bindkey '^[[B' down-line-or-beginning-search
-bindkey '^R' history-incremental-search-backward
+if zle -l fzf-history-widget >/dev/null 2>&1; then
+  bindkey -M emacs '^R' fzf-history-widget
+  bindkey -M vicmd '^R' fzf-history-widget
+  bindkey -M viins '^R' fzf-history-widget
+else
+  bindkey '^R' history-incremental-search-backward
+fi
 bindkey '^X^E' edit-command-line

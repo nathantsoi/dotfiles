@@ -106,13 +106,13 @@ EOF
 Keybindings
 
   Up / Down                  Prefix history search
-  Ctrl-R                     Reverse history search
+  Ctrl-R                     fzf history search, native reverse search fallback
   Ctrl-X Ctrl-E              Edit the current command in $EDITOR
   Option-Left / Option-Right Move by word
   Delete                     Delete character under cursor
   Option-Cmd-N               Open a new terminal tab via local newtab widget
 
-fzf bindings may also be available from ~/.fzf.zsh in real terminal sessions.
+fzf bindings are loaded from ~/.fzf.zsh in real terminal sessions when available.
 EOF
       ;;
     navigation)
