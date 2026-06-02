@@ -114,8 +114,7 @@ fi
 # homebrew-cask
 #export HOMEBREW_CASK_OPTS="--appdir=/Applications"
 
-# fzf
-[[ -t 0 && -f ~/.fzf.zsh ]] && source ~/.fzf.zsh
+
 
 # oh-my-zsh
 plugins=(rails git ruby osx rake brew adb tmux tmuxinator z colored-man-pages)
@@ -324,3 +323,6 @@ path_prepend_if_exists "$HOME/src/claw-code/rust/target/release"
 export PATH="$PATH:$HOME/.docker/cli-plugins/docker-compose"
 
 path_prepend_if_exists "$HOME/.antigravity-ide/antigravity-ide/bin"
+
+# fzf
+[[ -t 0 && -f ~/.fzf.zsh ]] && source ~/.fzf.zsh
