@@ -352,13 +352,20 @@ install_powerline_config() {
   fi
 }
 
+fzf_supports_zsh() {
+  local fzf_bin="$1"
+  [[ -n "$fzf_bin" && -x "$fzf_bin" ]] && "$fzf_bin" --zsh >/dev/null 2>&1
+}
+
 install_fzf_integration() {
-  if have fzf; then
-    info "installing fzf shell integration"
-    if fzf --zsh >/dev/null 2>&1; then
-      success "fzf integration"
-      return
-    fi
+  if [[ -x "$HOME/.fzf/bin/fzf" ]] && fzf_supports_zsh "$HOME/.fzf/bin/fzf"; then
+    success "fzf integration (~/.fzf)"
+    return
+  fi
+
+  if have fzf && fzf_supports_zsh "$(command -v fzf)"; then
+    success "fzf integration (system)"
+    return
   fi
 
   if [[ -d "$HOME/.fzf/.git" ]]; then
@@ -372,7 +379,30 @@ install_fzf_integration() {
     }
   fi
 
-  "$HOME/.fzf/install" --all --no-bash --no-fish || warn "fzf install script failed"
+  # Dotfiles owns ~/.zshrc and ~/.fzf.zsh; do not let fzf/install overwrite them.
+  "$HOME/.fzf/install" --all --no-bash --no-fish --no-update-rc || warn "fzf install script failed"
+}
+
+is_fzf_stub_zshrc() {
+  local file="$1"
+  [[ -f "$file" && ! -L "$file" ]] || return 1
+  [[ $(wc -c <"$file") -lt 120 ]] || return 1
+  grep -q 'fzf\.zsh' "$file" 2>/dev/null
+}
+
+ensure_dotfiles_zshrc() {
+  local dest="$HOME/.zshrc"
+  local source="$DOTFILES_ROOT/zsh/zshrc.symlink"
+
+  if [[ -L "$dest" && "$(readlink "$dest")" == "$source" ]]; then
+    return
+  fi
+
+  if is_fzf_stub_zshrc "$dest"; then
+    warn "replacing fzf stub ~/.zshrc with dotfiles zshrc"
+    rm -f "$dest"
+    link_file "$source" "$dest"
+  fi
 }
 
 setup_gitconfig() {
@@ -432,6 +462,9 @@ install_dotfiles() {
       fi
 
       overwrite=false
+      if [[ "$dest" == "$HOME/.zshrc" ]] && is_fzf_stub_zshrc "$dest"; then
+        overwrite=true
+      fi
       backup=false
       skip=false
 
@@ -514,9 +547,10 @@ main() {
   install_linux_nerd_font
   install_linux_nvm
   install_linux_miniforge
-  install_fzf_integration
   setup_gitconfig
   install_dotfiles
+  ensure_dotfiles_zshrc
+  install_fzf_integration
   fix_zsh_permissions
   set_default_shell
 

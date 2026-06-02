@@ -2,7 +2,18 @@
 
 set -euo pipefail
 
-if command -v fzf >/dev/null 2>&1 && fzf --zsh >/dev/null 2>&1; then
+DOTFILES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+fzf_supports_zsh() {
+  local fzf_bin="$1"
+  [[ -n "$fzf_bin" && -x "$fzf_bin" ]] && "$fzf_bin" --zsh >/dev/null 2>&1
+}
+
+if [[ -x "$HOME/.fzf/bin/fzf" ]] && fzf_supports_zsh "$HOME/.fzf/bin/fzf"; then
+  exit 0
+fi
+
+if command -v fzf >/dev/null 2>&1 && fzf_supports_zsh "$(command -v fzf)"; then
   exit 0
 fi
 
@@ -12,4 +23,4 @@ else
   git clone --depth 1 https://github.com/junegunn/fzf.git "$HOME/.fzf"
 fi
 
-"$HOME/.fzf/install" --all --no-bash --no-fish
+"$HOME/.fzf/install" --all --no-bash --no-fish --no-update-rc

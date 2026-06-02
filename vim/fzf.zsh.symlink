@@ -1,7 +1,21 @@
-# Setup fzf
-# ---------
-if [[ ! "$PATH" == */home/ntsoi/.fzf/bin* ]]; then
-  PATH="${PATH:+${PATH}:}/home/ntsoi/.fzf/bin"
+# Setup fzf (prefer ~/.fzf clone over distro packages missing `fzf --zsh`)
+
+_fzf_base="${FZF_BASE:-$HOME/.fzf}"
+
+if [[ -x "${_fzf_base}/bin/fzf" ]]; then
+  path=("${_fzf_base}/bin" ${path[@]})
+elif [[ -d "${_fzf_base}/bin" ]]; then
+  path=("${_fzf_base}/bin" ${path[@]})
 fi
 
-source <(fzf --zsh)
+if command -v fzf >/dev/null 2>&1 && fzf --zsh >/dev/null 2>&1; then
+  source <(fzf --zsh)
+elif [[ -f "${_fzf_base}/shell/completion.zsh" ]]; then
+  source "${_fzf_base}/shell/completion.zsh"
+fi
+
+if [[ -f "${_fzf_base}/shell/key-bindings.zsh" ]]; then
+  source "${_fzf_base}/shell/key-bindings.zsh"
+fi
+
+unset _fzf_base
