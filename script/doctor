@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Validate the dotfiles setup after bootstrap/install.
+# Validate the dotfiles setup after script/setup.
 
 set -euo pipefail
 
@@ -11,6 +11,7 @@ echo
 
 echo "Script syntax"
 bash -n \
+  "$DOTFILES_ROOT/script/setup" \
   "$DOTFILES_ROOT/script/bootstrap" \
   "$DOTFILES_ROOT/script/install" \
   "$DOTFILES_ROOT/debian/install.sh" \
@@ -44,5 +45,5 @@ echo "Interactive shell"
 if command -v zsh >/dev/null 2>&1; then
   zsh -i -c 'shell-help intro >/dev/null; shell-doctor'
 else
-  echo "  zsh unavailable; run script/bootstrap first"
+  echo "  zsh unavailable; run script/setup first"
 fi

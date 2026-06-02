@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Debian/Ubuntu package installation is handled by script/bootstrap.
+# Debian/Ubuntu package installation is handled by script/setup.
 
 set -euo pipefail
 

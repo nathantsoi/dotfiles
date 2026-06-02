@@ -7,26 +7,29 @@ Personal dotfiles for macOS and Linux with Zsh, Vim, tmux, Git, fzf, modern CLI 
 ```sh
 git clone --recursive git@github.com:nathantsoi/dotfiles.git ~/.dotfiles
 cd ~/.dotfiles
-script/bootstrap
-script/install
+sudo -v
+script/setup
 script/doctor
 ```
 
-Use `script/bootstrap` first. It installs system dependencies, sets up fzf integration, creates dotfile symlinks, and attempts to set Zsh as the login shell. Use `script/install` after bootstrap for topic-specific setup such as Vim plugins and optional language/tool integrations.
-Use `script/doctor` after either command to validate the shell, prompt, and installed tools.
+Run `sudo -v` first so the setup script can install packages and change your login shell without prompting for a password mid-run.
 
-If you do not have sudo/root access on Linux, package installation and `chsh` are skipped, but symlinks are still created.
+`script/setup` installs system dependencies, sets up fzf integration, creates dotfile symlinks, runs topic-specific installers (Vim plugins, and similar), and attempts to set Zsh as the login shell.
+
+`script/bootstrap` and `script/install` still work but delegate to `script/setup`.
+
+Use `script/doctor` after setup to validate the shell, prompt, and installed tools.
 
 ## Supported Systems
 
-- macOS with Homebrew. If Homebrew is missing, `script/bootstrap` installs it.
+- macOS with Homebrew. If Homebrew is missing, `script/setup` installs it.
 - Debian/Ubuntu-style Linux with `apt-get`.
 
 Other Linux package managers are not automated yet.
 
 ## Installed Tools
 
-`script/bootstrap` installs or attempts to install:
+`script/setup` installs or attempts to install:
 
 - Shell/editor/session: `zsh`, `vim`, `tmux`, `git`
 - Fuzzy search and navigation: `fzf`, `ripgrep`, `fd`, `z`
@@ -37,9 +40,9 @@ Other Linux package managers are not automated yet.
 - File watching: `watchman`
 - Prompt/fonts: Powerline-compatible fonts, JetBrains Mono Nerd Font on macOS, and `powerline-status`
 
-On Linux, package names vary by distro version. Optional packages are attempted individually and skipped if unavailable. Bootstrap also normalizes common Ubuntu binary names by linking `fd` to `fdfind` and `bat` to `batcat` in `~/.local/bin` when needed.
+On Linux, package names vary by distro version. Optional packages are attempted individually and skipped if unavailable. Setup also normalizes common Ubuntu binary names by linking `fd` to `fdfind` and `bat` to `batcat` in `~/.local/bin` when needed.
 
-For `eza --icons` to render correctly, configure your terminal font to a Nerd Font. On macOS bootstrap installs `JetBrainsMono Nerd Font`; in iTerm2 set your profile font to `JetBrainsMono Nerd Font`.
+For `eza --icons` to render correctly, configure your terminal font to a Nerd Font. On macOS setup installs `JetBrainsMono Nerd Font`; in iTerm2 set your profile font to `JetBrainsMono Nerd Font`.
 
 ## Shell Help
 
@@ -100,8 +103,8 @@ Local config is sourced before the rest of the Zsh setup and is not meant to be 
 cd ~/.dotfiles
 git pull --ff-only
 git submodule update --init --recursive
-script/bootstrap
-script/install
+sudo -v
+script/setup
 ```
 
 ## Structure
@@ -109,5 +112,5 @@ script/install
 - `bin/`: executables added to `$PATH`
 - `topic/*.zsh`: shell configuration loaded by Zsh
 - `topic/*.symlink`: linked to `~/.$name`
-- `script/bootstrap`: system dependencies, fzf integration, symlinks, shell setup
-- `script/install`: topic-specific installers
+- `script/setup`: full install (packages, symlinks, shell setup, topic installers)
+- `script/bootstrap`, `script/install`: deprecated wrappers around `script/setup`

@@ -319,4 +319,8 @@ path_prepend_if_exists "$HOME/src/claw-code/rust/target/release"
 #export PATH="$PATH:$HOME/.lmstudio/bin"
 # End of LM Studio CLI section
 
+
+# docker-cli
+export PATH="$PATH:$HOME/.docker/cli-plugins/docker-compose"
+
 path_prepend_if_exists "$HOME/.antigravity-ide/antigravity-ide/bin"

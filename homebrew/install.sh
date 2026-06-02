@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Homebrew package installation is handled by script/bootstrap.
+# Homebrew package installation is handled by script/setup.
 
 set -euo pipefail
 
@@ -9,7 +9,7 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 if ! command -v brew >/dev/null 2>&1; then
-  echo "Homebrew is not installed; run script/bootstrap first" >&2
+  echo "Homebrew is not installed; run script/setup first" >&2
   exit 0
 fi
 

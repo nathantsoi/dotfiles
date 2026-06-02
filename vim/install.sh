@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if ! command -v vim >/dev/null 2>&1; then
-  echo "vim is not installed; run script/bootstrap first" >&2
+  echo "vim is not installed; run script/setup first" >&2
   exit 0
 fi
 
@@ -13,4 +13,6 @@ if [[ ! -f "$HOME/.vim/autoload/plug.vim" ]]; then
     https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
 fi
 
-vim +PlugInstall +qall
+# PlugInstall paints a full-screen UI. Without a TTY, vim still writes cursor
+# motion and redraw escapes to stdout and breaks the calling terminal layout.
+vim '+PlugInstall --sync' +qall! </dev/null >/dev/null
