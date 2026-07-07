@@ -719,11 +719,13 @@ install_fzf_integration() {
   "$HOME/.fzf/install" --all --no-bash --no-fish --no-update-rc || warn "fzf install script failed"
 }
 
-is_fzf_stub_zshrc() {
+# A tiny non-symlink ~/.zshrc is almost certainly a throwaway stub (fzf install
+# stub, pipx/miniforge env stub, etc.) rather than a real user config. Treat it
+# as safe to replace. A genuine user zshrc is usually far larger.
+is_stub_zshrc() {
   local file="$1"
   [[ -f "$file" && ! -L "$file" ]] || return 1
-  [[ $(wc -c <"$file") -lt 120 ]] || return 1
-  grep -q 'fzf\.zsh' "$file" 2>/dev/null
+  [[ $(wc -c <"$file") -lt 200 ]] || return 1
 }
 
 ensure_dotfiles_zshrc() {
@@ -734,10 +736,13 @@ ensure_dotfiles_zshrc() {
     return
   fi
 
-  if is_fzf_stub_zshrc "$dest"; then
-    warn "replacing fzf stub ~/.zshrc with dotfiles zshrc"
-    rm -f "$dest"
+  if is_stub_zshrc "$dest"; then
+    warn "replacing stub ~/.zshrc ($(wc -c <"$dest") bytes) with dotfiles zshrc"
+    mv "$dest" "$dest.backup"
+    success "backed up old ~/.zshrc to ~/.zshrc.backup"
     link_file "$source" "$dest"
+  else
+    warn "existing ~/.zshrc is not a stub; left in place (dotfiles zshrc not linked)"
   fi
 }
 
@@ -798,7 +803,7 @@ install_dotfiles() {
       fi
 
       overwrite=false
-      if [[ "$dest" == "$HOME/.zshrc" ]] && is_fzf_stub_zshrc "$dest"; then
+      if [[ "$dest" == "$HOME/.zshrc" ]] && is_stub_zshrc "$dest"; then
         overwrite=true
       fi
       backup=false
@@ -850,6 +855,68 @@ fix_zsh_permissions() {
   chmod -R go-w "$DOTFILES_ROOT/zsh" "$DOTFILES_ROOT/functions" 2>/dev/null || true
 }
 
+# Without root, zsh can't come from apt/brew. Miniforge (installed earlier in
+# main()) provides conda-forge, so install zsh into the conda base env and link
+# it onto PATH (~/.local/bin). Skipped silently if no conda is available; the
+# missing-tool defer step reports it instead.
+install_user_local_zsh() {
+  [[ "$OS" == "Linux" ]] || return 0
+  have zsh && return 0
+
+  local conda_bin=""
+  if [[ -x "$HOME/miniforge3/bin/conda" ]]; then
+    conda_bin="$HOME/miniforge3/bin/conda"
+  elif [[ -x "$HOME/miniconda3/bin/conda" ]]; then
+    conda_bin="$HOME/miniconda3/bin/conda"
+  elif have conda; then
+    conda_bin="$(command -v conda)"
+  else
+    return 0
+  fi
+
+  info "installing zsh (user-local via conda)"
+  if "$conda_bin" install -c conda-forge zsh -y >/dev/null 2>&1; then
+    local conda_prefix zsh_bin
+    conda_prefix="$("$conda_bin" info --base 2>/dev/null)"
+    zsh_bin="$conda_prefix/bin/zsh"
+    if [[ -x "$zsh_bin" ]]; then
+      mkdir -p "$HOME/.local/bin"
+      ln -sfn "$zsh_bin" "$HOME/.local/bin/zsh"
+      success "zsh installed to $zsh_bin (linked at ~/.local/bin/zsh)"
+    else
+      defer "user-local" "zsh" "conda install ok but binary not found" "conda install -c conda-forge zsh"
+    fi
+  else
+    defer "user-local" "zsh" "conda install failed" "conda install -c conda-forge zsh  (or build zsh from source)"
+  fi
+}
+
+# No-root substitute for `chsh`: chsh needs the target in /etc/shells, which
+# isn't editable without root. Instead, append a guarded exec into zsh to the
+# bash startup files so interactive sessions drop into zsh. Idempotent.
+install_zsh_shell_guard() {
+  local zsh_path="$1"
+  local marker="# >>> dotfiles: switch to zsh (no-root workaround) >>>"
+  local end_marker="# <<< dotfiles: switch to zsh (no-root workaround) <<<"
+  local file
+  for file in "$HOME/.bashrc" "$HOME/.bash_profile"; do
+    [[ -f "$file" ]] || continue
+    if grep -qF "$marker" "$file" 2>/dev/null; then
+      continue
+    fi
+    {
+      printf '\n%s\n' "$marker"
+      printf '# Login shell cannot be changed without root (chsh needs /etc/shells entry),\n'
+      printf '# so exec into zsh instead. Only fires for interactive TTY sessions.\n'
+      printf 'if [ -t 1 ] && [ -z "${ZSH_VERSION:-}" ] && [ -x "%s" ]; then\n' "$zsh_path"
+      printf '  exec "%s" -l\n' "$zsh_path"
+      printf 'fi\n'
+      printf '%s\n' "$end_marker"
+    } >> "$file"
+    success "added zsh exec guard to $file"
+  done
+}
+
 set_default_shell() {
   local zsh_path
   zsh_path="$(command -v zsh || true)"
@@ -857,7 +924,9 @@ set_default_shell() {
 
   if [[ "$HAS_SUDO" != true ]]; then
     if [[ "${SHELL:-}" != "$zsh_path" ]]; then
-      defer "shell" "login shell" "not changed to zsh (no sudo)" "chsh -s $zsh_path  (add $zsh_path to /etc/shells first if needed; may require sudo)"
+      install_zsh_shell_guard "$zsh_path"
+      info "no root: login shell left as ${SHELL:-bash}; interactive shells exec into zsh"
+      info "to set the real login shell later: add $zsh_path to /etc/shells, then chsh -s $zsh_path"
     fi
     return
   fi
@@ -918,6 +987,7 @@ main() {
   install_linux_nvm
   install_linux_miniforge
   install_user_local_tools
+  install_user_local_zsh
   defer_missing_linux_tools
   setup_gitconfig
   install_dotfiles

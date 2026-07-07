@@ -14,6 +14,8 @@ script/doctor
 
 `sudo -v` is **optional**. With cached sudo credentials, setup installs system packages via apt/Homebrew and changes your login shell. **Without sudo** (e.g. on a shared server or container), setup still completes: it installs what it can user-locally (fzf, nvm, Miniforge, pyenv, rbenv, Nerd Font, pipx/powerline, and a set of static binaries from GitHub releases into `~/.local/bin`) and records everything it couldn't install in a **deferred-items** report printed at the end of the run and by `script/doctor` / `shell-doctor`, each with a remediation hint.
 
+Without sudo, setup also makes Zsh the effective shell: it installs zsh into the Miniforge base env (linked at `~/.local/bin/zsh`), and—since `chsh` requires root and an `/etc/shells` entry it can't edit—appends a guarded `exec zsh` to `~/.bashrc` and `~/.bash_profile` so interactive sessions drop into Zsh. `$SHELL` still reports bash (cosmetic); to make it the real login shell later, add the zsh path to `/etc/shells` and run `chsh -s <zsh>` once you have root.
+
 `script/setup` installs system dependencies, sets up fzf integration, creates dotfile symlinks, runs topic-specific installers (Vim plugins, and similar), and attempts to set Zsh as the login shell.
 
 `script/bootstrap` and `script/install` still work but delegate to `script/setup`.
