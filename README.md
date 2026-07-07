@@ -7,23 +7,23 @@ Personal dotfiles for macOS and Linux with Zsh, Vim, tmux, Git, fzf, modern CLI 
 ```sh
 git clone --recursive git@github.com:nathantsoi/dotfiles.git ~/.dotfiles
 cd ~/.dotfiles
-sudo -v
+sudo -v   # optional but recommended when available
 script/setup
 script/doctor
 ```
 
-Run `sudo -v` first so the setup script can install packages and change your login shell without prompting for a password mid-run.
+`sudo -v` is **optional**. With cached sudo credentials, setup installs system packages via apt/Homebrew and changes your login shell. **Without sudo** (e.g. on a shared server or container), setup still completes: it installs what it can user-locally (fzf, nvm, Miniforge, pyenv, rbenv, Nerd Font, pipx/powerline, and a set of static binaries from GitHub releases into `~/.local/bin`) and records everything it couldn't install in a **deferred-items** report printed at the end of the run and by `script/doctor` / `shell-doctor`, each with a remediation hint.
 
 `script/setup` installs system dependencies, sets up fzf integration, creates dotfile symlinks, runs topic-specific installers (Vim plugins, and similar), and attempts to set Zsh as the login shell.
 
 `script/bootstrap` and `script/install` still work but delegate to `script/setup`.
 
-Use `script/doctor` after setup to validate the shell, prompt, and installed tools.
+Use `script/doctor` after setup to validate the shell, prompt, and installed tools, and to review any deferred items.
 
 ## Supported Systems
 
-- macOS with Homebrew. If Homebrew is missing, `script/setup` installs it.
-- Debian/Ubuntu-style Linux with `apt-get`.
+- macOS with Homebrew. If Homebrew is missing and sudo is available, `script/setup` installs it. Without sudo, Homebrew packages are deferred.
+- Debian/Ubuntu-style Linux with `apt-get`. Without sudo, setup falls back to user-local static binaries and defers the rest.
 
 Other Linux package managers are not automated yet.
 

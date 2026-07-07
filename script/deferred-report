@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+#
+# Print the deferred-items report. Sourced/exec'd by script/doctor and
+# shell-doctor so the report has a single source of truth.
+
+set -euo pipefail
+
+DOTFILES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=deferred.lib
+source "$DOTFILES_ROOT/script/deferred.lib"
+
+print_deferred_report

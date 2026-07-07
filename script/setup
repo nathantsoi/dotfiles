@@ -2,14 +2,26 @@
 #
 # Full dotfiles setup: system packages, symlinks, shell integration, topic installers.
 #
-# Prerequisite (when not root): cache sudo credentials before running:
-#   sudo -v
-#   script/setup
+# Runs with or without sudo. With cached sudo credentials (`sudo -v` first),
+# setup installs system packages via apt/Homebrew and changes the login shell.
+# Without sudo, setup skips those root-requiring steps, installs what it can
+# user-locally, and records the rest in a deferred-items report printed at the
+# end and via `script/doctor`.
 
 set -euo pipefail
 
 DOTFILES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OS="$(uname -s)"
+
+# shellcheck source=deferred.lib
+source "$DOTFILES_ROOT/script/deferred.lib"
+
+# Setup runs in bash, not zsh, so the user-local bin dir that zshrc adds to PATH
+# isn't loaded. Prepend it so `have` checks see tools we install there (static
+# binaries) and pipx-managed CLIs (powerline, httpie, uv, yt-dlp, ...).
+mkdir -p "$HOME/.local/bin"
+PATH="$HOME/.local/bin:$PATH"
+export PATH
 
 info() {
   printf "  [ \033[00;34m..\033[0m ] %s\n" "$1"
@@ -36,17 +48,21 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
-require_sudo_session() {
+# Privilege state, populated by detect_privileges().
+HAS_SUDO=false
+CAN_APT=false
+
+detect_privileges() {
+  HAS_SUDO=false
   if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
-    return 0
+    HAS_SUDO=true
+  elif have sudo && sudo -n true 2>/dev/null; then
+    HAS_SUDO=true
   fi
 
-  if ! have sudo; then
-    fail "sudo is required but not installed"
-  fi
-
-  if ! sudo -n true 2>/dev/null; then
-    fail "sudo credentials are not cached. Run: sudo -v"
+  CAN_APT=false
+  if [[ "$OS" == "Linux" && "$HAS_SUDO" == true ]] && have apt-get; then
+    CAN_APT=true
   fi
 }
 
@@ -60,12 +76,22 @@ run_as_root() {
 
 apt_install_one() {
   local package="$1"
-  run_as_root apt-get install -y "$package"
+  if run_as_root apt-get install -y "$package"; then
+    return 0
+  fi
+  warn "apt package unavailable: $package"
+  defer "apt" "$package" "unavailable in apt" "try Homebrew (brew install $package) or a static binary"
+  return 1
 }
 
 install_homebrew() {
   if have brew; then
-    return
+    return 0
+  fi
+
+  if [[ "$HAS_SUDO" != true ]]; then
+    warn "Homebrew not installed and no sudo available; skipping (brew packages deferred)"
+    return 1
   fi
 
   info "installing Homebrew"
@@ -81,7 +107,15 @@ install_homebrew() {
 }
 
 install_macos_packages() {
-  install_homebrew
+  if ! have brew; then
+    install_homebrew || true
+  fi
+
+  if ! have brew; then
+    warn "Homebrew unavailable; deferring brew packages"
+    defer_macos_tools
+    return
+  fi
 
   local packages=(
     awscli
@@ -152,14 +186,41 @@ install_macos_packages() {
   local cask
   for cask in font-inconsolata font-jetbrains-mono-nerd-font miniforge; do
     if ! brew list --cask "$cask" >/dev/null 2>&1; then
-      brew install --cask "$cask" || warn "could not install $cask cask"
+      brew install --cask "$cask" || {
+        warn "could not install $cask cask"
+        defer "brew-cask" "$cask" "not installed" "brew install --cask $cask"
+      }
     fi
   done
 }
 
+defer_macos_tools() {
+  # label|binary  — defer brew formulae that aren't on PATH when Homebrew is
+  # unavailable (no sudo to install it). Remedy points at installing Homebrew.
+  local entries=(
+    "zsh|zsh" "vim|vim" "tmux|tmux" "git|git" "fzf|fzf" "ripgrep|rg"
+    "fd|fd" "bat|bat" "eza|eza" "jq|jq" "yq|yq" "tree|tree" "direnv|direnv"
+    "duf|duf" "dust|dust" "ncdu|ncdu" "bottom|btm" "shellcheck|shellcheck"
+    "shfmt|shfmt" "gh|gh" "git-delta|delta" "httpie|http" "tlrc|tldr"
+    "node|node" "nvm|nvm" "uv|uv" "pyenv|pyenv" "rbenv|rbenv" "pipx|pipx"
+    "pipenv|pipenv" "ffmpeg|ffmpeg" "imagemagick|magick" "awscli|aws"
+    "rclone|rclone" "yt-dlp|yt-dlp" "watchman|watchman" "sqlite|sqlite3"
+  )
+  local entry label bin
+  for entry in "${entries[@]}"; do
+    IFS='|' read -r label bin <<< "$entry"
+    if have "$bin"; then continue; fi
+    defer "brew" "$label" "not installed" "install Homebrew (https://brew.sh, requires sudo), then: brew install $label"
+  done
+}
+
 install_linux_packages() {
-  if ! have apt-get; then
-    warn "Linux dependency install currently supports apt-get only"
+  if [[ "$CAN_APT" != true ]]; then
+    if ! have apt-get; then
+      warn "no apt-get; skipping system packages (recorded for manual install)"
+    else
+      warn "no sudo available; skipping apt packages (recorded for manual install)"
+    fi
     return
   fi
 
@@ -222,12 +283,271 @@ install_linux_packages() {
 
   local package
   for package in "${required[@]}"; do
-    apt_install_one "$package" || warn "required apt package unavailable: $package"
+    apt_install_one "$package" || true
   done
 
   for package in "${optional[@]}"; do
-    apt_install_one "$package" || warn "optional apt package unavailable: $package"
+    apt_install_one "$package" || true
   done
+}
+
+# Record user-facing tools that are still missing on Linux, with a remediation
+# hint. Covers both the no-sudo case (everything apt would have provided) and
+# packages apt couldn't provide. Runs after the apt step (or in its place).
+defer_missing_linux_tools() {
+  [[ "$OS" == "Linux" ]] || return 0
+
+  # label|binary(s)|apt_pkg|category
+  local entries=(
+    "zsh|zsh|zsh|required"
+    "vim|vim|vim|required"
+    "tmux|tmux|tmux|required"
+    "git|git|git|required"
+    "fzf|fzf|fzf|required"
+    "ripgrep|rg|ripgrep|optional"
+    "fd|fd fdfind|fd-find|optional"
+    "bat|bat batcat|bat|optional"
+    "eza|eza exa|eza|optional"
+    "jq|jq|jq|optional"
+    "yq|yq|yq|optional"
+    "tree|tree|tree|optional"
+    "direnv|direnv|direnv|optional"
+    "duf|duf|duf|optional"
+    "dust|dust|dust|optional"
+    "ncdu|ncdu|ncdu|optional"
+    "bottom|btm|bottom|optional"
+    "shellcheck|shellcheck|shellcheck|optional"
+    "shfmt|shfmt|shfmt|optional"
+    "gh|gh|gh|optional"
+    "git-delta|delta|git-delta|optional"
+    "httpie|http|httpie|optional"
+    "tldr|tldr tlrc|tldr|optional"
+    "node|node|nodejs|optional"
+    "npm|npm|npm|optional"
+    "uv|uv|uv|optional"
+    "imagemagick|magick convert|imagemagick|optional"
+    "ffmpeg|ffmpeg|ffmpeg|optional"
+    "rclone|rclone|rclone|optional"
+    "yt-dlp|yt-dlp|yt-dlp|optional"
+    "watchman|watchman|watchman|optional"
+    "sqlite|sqlite3|sqlite3|optional"
+    "the_silver_searcher|ag|silversearcher-ag|optional"
+  )
+
+  local entry label bins pkg category b found remedy
+  for entry in "${entries[@]}"; do
+    IFS='|' read -r label bins pkg category <<< "$entry"
+
+    # nvm provides node/npm on demand; don't nag about them when present.
+    case "$label" in
+      node|npm) have nvm && continue ;;
+    esac
+
+    found=false
+    for b in $bins; do
+      if have "$b"; then found=true; break; fi
+    done
+    if [[ "$found" == true ]]; then continue; fi
+
+    if [[ "$CAN_APT" == true ]]; then
+      remedy="apt could not provide '$pkg'; try Homebrew (brew install $pkg) or a static binary"
+    else
+      remedy="run 'sudo -v && script/setup' (or ask your admin) to: apt-get install -y $pkg"
+    fi
+    defer "$category" "$label" "not installed" "$remedy"
+  done
+}
+
+# Aggressive user-local fallback: download musl static binaries from GitHub
+# releases into ~/.local/bin (already on PATH) for tools that are still missing.
+# Any failure is recorded via defer instead of aborting the run.
+install_user_local_tools() {
+  [[ "$OS" == "Linux" ]] || return 0
+  have curl || return 0
+  have python3 || return 0
+
+  mkdir -p "$HOME/.local/bin"
+
+  local arch
+  case "$(uname -m)" in
+    x86_64|amd64) arch="x86_64" ;;
+    aarch64|arm64) arch="aarch64" ;;
+    *) warn "unsupported arch for static binaries: $(uname -m)"; return 0 ;;
+  esac
+
+  # Per-arch asset entries: label|owner|repo|substr|binary|kind
+  # kind: tar (.tar.gz/.tar.xz), zip, bin (single binary, no extraction).
+  # substr must be specific enough to select the right archive (e.g. avoid
+  # matching a .deb when a .tar.gz is also published).
+  local entries
+  if [[ "$arch" == "x86_64" ]]; then
+    entries=(
+      "rg|BurntSushi|ripgrep|x86_64-unknown-linux-musl|rg|tar"
+      "fd|sharkdp|fd|x86_64-unknown-linux-musl|fd|tar"
+      "bat|sharkdp|bat|x86_64-unknown-linux-musl|bat|tar"
+      "eza|eza-community|eza|x86_64-unknown-linux-musl|eza|tar"
+      "delta|dandavison|delta|x86_64-unknown-linux-musl|delta|tar"
+      "dust|bootandy|dust|x86_64-unknown-linux-musl|dust|tar"
+      "duf|muesli|duf|linux_x86_64|duf|tar"
+      "btm|ClementTsang|bottom|x86_64-unknown-linux-musl|btm|tar"
+      "zoxide|ajeetdsouza|zoxide|x86_64-unknown-linux-musl|zoxide|tar"
+      "jq|jqlang|jq|linux-amd64|jq|bin"
+      "yq|mikefarah|yq|linux_amd64|yq|bin"
+      "gh|cli|cli|linux_amd64.tar.gz|gh|tar"
+      "shellcheck|koalaman|shellcheck|linux.x86_64|shellcheck|tar"
+      "shfmt|mvdan|shfmt|linux_amd64|shfmt|bin"
+      "tldr|tlrc|tlrc|x86_64-unknown-linux-musl|tldr|zip"
+      "direnv|direnv|direnv|linux-amd64|direnv|bin"
+      "rclone|rclone|rclone|linux-amd64.zip|rclone|zip"
+    )
+  else
+    entries=(
+      "rg|BurntSushi|ripgrep|aarch64-unknown-linux-musl|rg|tar"
+      "fd|sharkdp|fd|aarch64-unknown-linux-musl|fd|tar"
+      "bat|sharkdp|bat|aarch64-unknown-linux-musl|bat|tar"
+      "eza|eza-community|eza|aarch64-unknown-linux-musl|eza|tar"
+      "delta|dandavison|delta|aarch64-unknown-linux-musl|delta|tar"
+      "dust|bootandy|dust|aarch64-unknown-linux-musl|dust|tar"
+      "duf|muesli|duf|linux_arm64|duf|tar"
+      "btm|ClementTsang|bottom|aarch64-unknown-linux-musl|btm|tar"
+      "zoxide|ajeetdsouza|zoxide|aarch64-unknown-linux-musl|zoxide|tar"
+      "jq|jqlang|jq|linux-arm64|jq|bin"
+      "yq|mikefarah|yq|linux_arm64|yq|bin"
+      "gh|cli|cli|linux_arm64.tar.gz|gh|tar"
+      "shellcheck|koalaman|shellcheck|linux.arm64|shellcheck|tar"
+      "shfmt|mvdan|shfmt|linux_arm64|shfmt|bin"
+      "tldr|tlrc|tlrc|aarch64-unknown-linux-musl|tldr|zip"
+      "direnv|direnv|direnv|linux-arm64|direnv|bin"
+      "rclone|rclone|rclone|linux-arm64.zip|rclone|zip"
+    )
+  fi
+
+  local entry label owner repo sub binary kind
+  for entry in "${entries[@]}"; do
+    IFS='|' read -r label owner repo sub binary kind <<< "$entry"
+    if have "$binary"; then continue; fi
+    install_release_binary "$label" "$owner" "$repo" "$sub" "$binary" "$kind" || true
+  done
+
+  # uv: astral publishes unversioned musl assets under releases/latest/download.
+  if ! have uv; then
+    local uv_arch
+    case "$(uname -m)" in
+      x86_64|amd64) uv_arch="x86_64" ;;
+      aarch64|arm64) uv_arch="aarch64" ;;
+      *) uv_arch="" ;;
+    esac
+    if [[ -n "$uv_arch" ]]; then
+      info "installing uv (user-local)"
+      local tmp_dir
+      tmp_dir="$(mktemp -d)"
+      if curl -fsSL "https://github.com/astral-sh/uv/releases/latest/download/uv-${uv_arch}-unknown-linux-musl.tar.gz" -o "$tmp_dir/uv.tar.gz"; then
+        tar -xzf "$tmp_dir/uv.tar.gz" -C "$tmp_dir" 2>/dev/null
+        local uv_bin
+        uv_bin="$(find "$tmp_dir" -type f -name uv -executable -print -quit 2>/dev/null || true)"
+        if [[ -n "$uv_bin" ]]; then
+          cp "$uv_bin" "$HOME/.local/bin/uv" && chmod +x "$HOME/.local/bin/uv"
+          success "uv installed to ~/.local/bin"
+        else
+          defer "user-local" "uv" "download failed" "curl -LsSf https://astral.sh/uv/install.sh | sh"
+        fi
+      else
+        defer "user-local" "uv" "download failed" "curl -LsSf https://astral.sh/uv/install.sh | sh"
+      fi
+      rm -rf "$tmp_dir"
+    fi
+  fi
+
+  # node: use nvm if present and node is missing.
+  if ! have node && have nvm; then
+    info "installing node via nvm (lts)"
+    # nvm is a shell function; load it for this invocation.
+    local nvm_sh="$HOME/.nvm/nvm.sh"
+    if [[ -s "$nvm_sh" ]]; then
+      (
+        # shellcheck source=/dev/null
+        source "$nvm_sh"
+        nvm install --lts >/dev/null 2>&1 && nvm use --lts >/dev/null 2>&1
+      ) || defer "user-local" "node" "nvm install failed" "nvm install --lts"
+    fi
+  fi
+
+  # httpie: pipx install if pipx is available and http is missing.
+  if ! have http && have pipx; then
+    info "installing httpie via pipx"
+    pipx install httpie >/dev/null 2>&1 || defer "user-local" "httpie" "pipx install failed" "pipx install httpie"
+  fi
+}
+
+# Resolve the browser_download_url of the latest release asset whose name
+# contains <asset_substr>. Prints the URL on stdout; returns non-zero on failure.
+resolve_asset_url() {
+  local owner="$1" repo="$2" sub="$3"
+  local api="https://api.github.com/repos/${owner}/${repo}/releases/latest"
+  local json
+  json="$(curl -fsSL "$api" 2>/dev/null)" || return 1
+  printf '%s\n' "$json" | python3 -c '
+import sys, json
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+sub = sys.argv[1]
+for a in d.get("assets", []):
+    name = a.get("name", "")
+    if sub in name:
+        print(a.get("browser_download_url", ""))
+        break
+' "$sub" | grep -m1 -v '^$'
+}
+
+install_release_binary() {
+  local label="$1" owner="$2" repo="$3" sub="$4" binary="$5" kind="$6"
+  local url
+  url="$(resolve_asset_url "$owner" "$repo" "$sub")" || {
+    defer "user-local" "$label" "could not resolve release" "see https://github.com/${owner}/${repo}/releases"
+    return 1
+  }
+  [[ -n "$url" ]] || {
+    defer "user-local" "$label" "no matching release asset" "see https://github.com/${owner}/${repo}/releases"
+    return 1
+  }
+
+  info "installing $label (user-local)"
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+  local archive="$tmp_dir/asset"
+  curl -fsSL "$url" -o "$archive" || {
+    defer "user-local" "$label" "download failed" "see $url"
+    rm -rf "$tmp_dir"
+    return 1
+  }
+
+  local found=""
+  case "$kind" in
+    tar)
+      tar -xf "$archive" -C "$tmp_dir" 2>/dev/null || true
+      found="$(find "$tmp_dir" -type f -name "$binary" -print -quit 2>/dev/null || true)"
+      ;;
+    zip)
+      have unzip || { defer "user-local" "$label" "unzip missing" "install unzip, then re-run"; rm -rf "$tmp_dir"; return 1; }
+      unzip -oq "$archive" -d "$tmp_dir" 2>/dev/null || true
+      found="$(find "$tmp_dir" -type f -name "$binary" -print -quit 2>/dev/null || true)"
+      ;;
+    bin)
+      found="$archive"
+      ;;
+  esac
+
+  if [[ -z "$found" ]]; then
+    defer "user-local" "$label" "could not locate binary in archive" "see $url"
+    rm -rf "$tmp_dir"
+    return 1
+  fi
+
+  cp "$found" "$HOME/.local/bin/$binary" && chmod +x "$HOME/.local/bin/$binary"
+  success "$label installed to ~/.local/bin/$binary"
+  rm -rf "$tmp_dir"
 }
 
 install_linux_command_shims() {
@@ -313,6 +633,12 @@ install_linux_miniforge() {
 }
 
 install_python_tools() {
+  # Bootstrap pipx without sudo when possible (pipx wraps user-venv CLIs).
+  if ! have pipx && have python3 && python3 -m pip --version >/dev/null 2>&1; then
+    info "bootstrapping pipx (user install)"
+    python3 -m pip install --user --upgrade pipx >/dev/null 2>&1 || true
+  fi
+
   if have pipx; then
     info "installing pipx tools"
     local powerline_python=""
@@ -344,6 +670,7 @@ install_python_tools() {
     fi
   else
     warn "pipx unavailable; skipping Python CLI tools"
+    defer "python" "pipx" "not installed" "python3 -m pip install --user pipx  (or: sudo apt-get install -y pipx)"
   fi
 }
 
@@ -528,6 +855,13 @@ set_default_shell() {
   zsh_path="$(command -v zsh || true)"
   [[ -n "$zsh_path" ]] || return
 
+  if [[ "$HAS_SUDO" != true ]]; then
+    if [[ "${SHELL:-}" != "$zsh_path" ]]; then
+      defer "shell" "login shell" "not changed to zsh (no sudo)" "chsh -s $zsh_path  (add $zsh_path to /etc/shells first if needed; may require sudo)"
+    fi
+    return
+  fi
+
   if ! grep -qx "$zsh_path" /etc/shells 2>/dev/null; then
     echo "$zsh_path" | run_as_root tee -a /etc/shells >/dev/null
   fi
@@ -562,10 +896,13 @@ install_topic_installers() {
 
 main() {
   cd "$DOTFILES_ROOT"
-  require_sudo_session
+  detect_privileges
+  defer_init
 
-  if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+  if [[ "$HAS_SUDO" == true && ${EUID:-$(id -u)} -ne 0 ]]; then
     info "using cached sudo credentials"
+  elif [[ "$HAS_SUDO" != true ]]; then
+    info "running without sudo; system packages deferred where needed"
   fi
 
   case "$OS" in
@@ -580,6 +917,8 @@ main() {
   install_linux_nerd_font
   install_linux_nvm
   install_linux_miniforge
+  install_user_local_tools
+  defer_missing_linux_tools
   setup_gitconfig
   install_dotfiles
   ensure_dotfiles_zshrc
@@ -592,6 +931,9 @@ main() {
   success "setup complete"
   echo "  Open a new shell or run: reload!"
   echo "  Explore features with: shell-help"
+  echo ""
+  echo "Deferred items (not installed; would improve UX):"
+  print_deferred_report
 }
 
 main "$@"

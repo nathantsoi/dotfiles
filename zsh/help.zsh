@@ -314,6 +314,13 @@ EOF
   else
     print -r -- "  warn native Powerline-style fallback prompt is active"
   fi
+
+  print -r -- $'\nDeferred (not installed; would improve UX)'
+  if [[ -x "$HOME/.dotfiles/script/deferred-report" ]]; then
+    "$HOME/.dotfiles/script/deferred-report"
+  else
+    print -r -- "  (run script/setup to generate the deferred report)"
+  fi
 }
 
 alias zhelp='shell-help'

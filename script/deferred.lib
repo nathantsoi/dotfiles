@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#
+# Shared deferred-items registry for script/setup and script/doctor.
+#
+# Keeps track of things that could not be installed (usually because sudo was
+# unavailable) but would improve the user experience. The report is printed at
+# the end of `script/setup` and by the doctor commands.
+#
+# Plain printf/read only (no bashisms) so this also sources cleanly under zsh.
+
+DEFERRED_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/deferred"
+
+defer_init() {
+  mkdir -p "$(dirname "$DEFERRED_FILE")"
+  : > "$DEFERRED_FILE"
+}
+
+# defer <category> <item> <reason> <remedy>
+defer() {
+  printf '%s|%s|%s|%s\n' "$1" "$2" "$3" "$4" >> "$DEFERRED_FILE"
+}
+
+print_deferred_report() {
+  if [[ ! -s "$DEFERRED_FILE" ]]; then
+    printf "  [ \033[00;32mOK\033[0m ] all recommended tools installed; nothing deferred\n"
+    return 0
+  fi
+
+  printf "  [ \033[0;33m!!\033[0m ] some items were not installed (would improve UX):\n\n"
+
+  local line category item reason remedy last_cat
+  last_cat=""
+  while IFS='|' read -r category item reason remedy; do
+    [[ -z "$category" ]] && continue
+    if [[ "$category" != "$last_cat" ]]; then
+      printf "  %s:\n" "$category"
+      last_cat="$category"
+    fi
+    printf "    - %-16s %s\n" "$item" "$remedy"
+  done < "$DEFERRED_FILE"
+}

@@ -259,7 +259,8 @@ fi
 
 # Isaac Lab
 # Isaac Sim root directory
-export ISAACSIM_PATH="$HOME/isaacsim"
+export ISAACSIM_PATH="$HOME/IsaacSim/_build/linux-x86_64/release"
+
 # Isaac Sim python executable
 export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
 

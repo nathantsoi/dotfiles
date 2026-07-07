@@ -5,6 +5,8 @@
 set -euo pipefail
 
 DOTFILES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=deferred.lib
+source "$DOTFILES_ROOT/script/deferred.lib"
 
 echo "Dotfiles doctor"
 echo
@@ -14,6 +16,8 @@ bash -n \
   "$DOTFILES_ROOT/script/setup" \
   "$DOTFILES_ROOT/script/bootstrap" \
   "$DOTFILES_ROOT/script/install" \
+  "$DOTFILES_ROOT/script/deferred-report" \
+  "$DOTFILES_ROOT/script/deferred.lib" \
   "$DOTFILES_ROOT/debian/install.sh" \
   "$DOTFILES_ROOT/font/install.sh" \
   "$DOTFILES_ROOT/fzf/install.sh" \
@@ -43,7 +47,11 @@ fi
 echo
 echo "Interactive shell"
 if command -v zsh >/dev/null 2>&1; then
-  zsh -i -c 'shell-help intro >/dev/null; shell-doctor'
+  zsh -i -c 'shell-help intro >/dev/null; shell-doctor' || echo "  zsh interactive check failed; run script/setup first"
 else
   echo "  zsh unavailable; run script/setup first"
 fi
+
+echo
+echo "Deferred (not installed; would improve UX)"
+print_deferred_report
