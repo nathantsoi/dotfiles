@@ -7,12 +7,30 @@ Personal dotfiles for macOS and Linux with Zsh, Vim, tmux, Git, fzf, modern CLI 
 ```sh
 git clone --recursive git@github.com:nathantsoi/dotfiles.git ~/.dotfiles
 cd ~/.dotfiles
-sudo -v   # optional but recommended when available
+sudo -v   # optional; if run, the install is recorded as a "sudo" install
 script/setup
 script/doctor
 ```
 
-`sudo -v` is **optional**. With cached sudo credentials, setup installs system packages via apt/Homebrew and changes your login shell. **Without sudo** (e.g. on a shared server or container), setup still completes: it installs what it can user-locally (fzf, nvm, Miniforge, pyenv, rbenv, Nerd Font, pipx/powerline, and a set of static binaries from GitHub releases into `~/.local/bin`) and records everything it couldn't install in a **deferred-items** report printed at the end of the run and by `script/doctor` / `shell-doctor`, each with a remediation hint.
+### Install mode (sticky)
+
+The first run records an **install mode** — `sudo` if sudo was available, or `user` if it wasn't — and reuses that mode on every later run so an install stays consistent:
+
+- A **no-root** install never starts touching system packages later just because sudo became available; updates stay user-local.
+- A **sudo** install requires sudo to update (it manages system packages via apt/Homebrew and the login shell). Re-run `sudo -v` first, then `script/setup`.
+
+Override or reset the recorded mode any time:
+
+```sh
+DOTFILES_INSTALL_MODE=user script/setup   # force a no-root (re)install
+DOTFILES_INSTALL_MODE=sudo script/setup   # force a sudo (re)install
+# or delete the marker to let setup re-detect on the next run:
+rm "${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/install-mode"
+```
+
+`script/doctor` prints the current install mode.
+
+**Without sudo** (e.g. on a shared server or container), setup still completes: it installs what it can user-locally (fzf, nvm, Miniforge, pyenv, rbenv, Nerd Font, pipx/powerline, and a set of static binaries from GitHub releases into `~/.local/bin`) and records everything it couldn't install in a **deferred-items** report printed at the end of the run and by `script/doctor` / `shell-doctor`, each with a remediation hint.
 
 Without sudo, setup also makes Zsh the effective shell: it installs zsh into the Miniforge base env (linked at `~/.local/bin/zsh`), and—since `chsh` requires root and an `/etc/shells` entry it can't edit—appends a guarded `exec zsh` to `~/.bashrc` and `~/.bash_profile` so interactive sessions drop into Zsh. `$SHELL` still reports bash (cosmetic); to make it the real login shell later, add the zsh path to `/etc/shells` and run `chsh -s <zsh>` once you have root.
 
@@ -103,9 +121,13 @@ Local config is sourced before the rest of the Zsh setup and is not meant to be 
 cd ~/.dotfiles
 git pull --ff-only
 git submodule update --init --recursive
-sudo -v
+sudo -v   # only needed if this install was set up with sudo
 script/setup
 ```
+
+`script/setup` reuses the recorded install mode (see [Install mode](#install-mode-sticky)).
+If it was set up with sudo, `sudo -v` is required; if it was a no-root install,
+`script/setup` runs without sudo and stays user-local.
 
 ## Structure
 

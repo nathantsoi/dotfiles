@@ -51,5 +51,19 @@ else
 fi
 
 echo
+echo "Install mode"
+mode_file="${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/install-mode"
+if [[ -s "$mode_file" ]]; then
+  mode="$(cat "$mode_file" 2>/dev/null || true)"
+  case "$mode" in
+    sudo) echo "  sudo (system packages via apt/Homebrew; sudo required to update)" ;;
+    user) echo "  user-local (no sudo; updates stay user-local)" ;;
+    *)    echo "  unknown: '$mode'" ;;
+  esac
+else
+  echo "  not recorded yet (run script/setup to record)"
+fi
+
+echo
 echo "Deferred (not installed; would improve UX)"
 print_deferred_report

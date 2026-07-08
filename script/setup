@@ -2,11 +2,14 @@
 #
 # Full dotfiles setup: system packages, symlinks, shell integration, topic installers.
 #
-# Runs with or without sudo. With cached sudo credentials (`sudo -v` first),
-# setup installs system packages via apt/Homebrew and changes the login shell.
-# Without sudo, setup skips those root-requiring steps, installs what it can
-# user-locally, and records the rest in a deferred-items report printed at the
-# end and via `script/doctor`.
+# Install mode is sticky. The first run records whether it installed with sudo
+# (system packages via apt/Homebrew + `chsh`) or user-locally (no root). Later
+# runs reuse that mode so an install stays consistent: a no-root install never
+# suddenly starts touching system packages just because sudo became available,
+# and a sudo install requires sudo to update its system packages. Override or
+# reset the recorded mode with DOTFILES_INSTALL_MODE=sudo|user (or delete the
+# mode file). Without sudo, setup installs what it can user-locally and records
+# the rest in a deferred-items report printed at the end and via `script/doctor`.
 
 set -euo pipefail
 
@@ -48,9 +51,12 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
-# Privilege state, populated by detect_privileges().
+# Privilege / install-mode state, populated by detect_privileges() and
+# resolve_install_mode(). See the file header for the sticky-mode rationale.
 HAS_SUDO=false
 CAN_APT=false
+INSTALL_MODE=""   # "sudo" | "user"
+MODE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/install-mode"
 
 detect_privileges() {
   HAS_SUDO=false
@@ -63,6 +69,54 @@ detect_privileges() {
   CAN_APT=false
   if [[ "$OS" == "Linux" && "$HAS_SUDO" == true ]] && have apt-get; then
     CAN_APT=true
+  fi
+}
+
+# Decide, persist, and enforce the install mode. Order of precedence:
+#   1. DOTFILES_INSTALL_MODE=sudo|user  (explicit override; rewrites marker)
+#   2. the recorded mode in $MODE_FILE  (sticky: reuse the original install)
+#   3. current privileges               (first run: sudo if available, else user)
+# In "user" mode sudo is forcibly ignored so the install stays user-local; in
+# "sudo" mode sudo is required (the run aborts if it is unavailable).
+resolve_install_mode() {
+  local mode=""
+
+  if [[ -n "${DOTFILES_INSTALL_MODE:-}" ]]; then
+    case "$DOTFILES_INSTALL_MODE" in
+      sudo|user) mode="$DOTFILES_INSTALL_MODE" ;;
+      *) warn "ignoring invalid DOTFILES_INSTALL_MODE='$DOTFILES_INSTALL_MODE' (want: sudo|user)" ;;
+    esac
+  fi
+
+  if [[ -z "$mode" && -s "$MODE_FILE" ]]; then
+    mode="$(cat "$MODE_FILE" 2>/dev/null || true)"
+    case "$mode" in
+      sudo|user) ;;
+      *) mode="" ;;
+    esac
+  fi
+
+  if [[ -z "$mode" ]]; then
+    if [[ "$HAS_SUDO" == true ]]; then
+      mode="sudo"
+    else
+      mode="user"
+    fi
+  fi
+
+  mkdir -p "$(dirname "$MODE_FILE")"
+  printf '%s\n' "$mode" > "$MODE_FILE"
+  INSTALL_MODE="$mode"
+
+  if [[ "$INSTALL_MODE" == "sudo" ]]; then
+    if [[ "$HAS_SUDO" != true ]]; then
+      fail "This dotfiles install was originally set up with sudo, so sudo is required to update it. Run 'sudo -v' first, then re-run 'script/setup'. (To switch to a no-root install instead: DOTFILES_INSTALL_MODE=user script/setup)"
+    fi
+  else
+    # user mode: never use sudo even if available, to keep the install
+    # consistent with the original no-root setup.
+    HAS_SUDO=false
+    CAN_APT=false
   fi
 }
 
@@ -966,12 +1020,17 @@ install_topic_installers() {
 main() {
   cd "$DOTFILES_ROOT"
   detect_privileges
+  resolve_install_mode
   defer_init
 
-  if [[ "$HAS_SUDO" == true && ${EUID:-$(id -u)} -ne 0 ]]; then
-    info "using cached sudo credentials"
-  elif [[ "$HAS_SUDO" != true ]]; then
-    info "running without sudo; system packages deferred where needed"
+  if [[ "$INSTALL_MODE" == "sudo" ]]; then
+    if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
+      info "install mode: sudo (running as root)"
+    else
+      info "install mode: sudo (using cached sudo credentials)"
+    fi
+  else
+    info "install mode: user-local (no sudo; system packages deferred where needed)"
   fi
 
   case "$OS" in
