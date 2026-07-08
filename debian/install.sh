@@ -8,7 +8,7 @@ if ! command -v apt-get >/dev/null 2>&1; then
   exit 0
 fi
 
-if [[ ${EUID:-$(id -u)} -ne 0 ]] && ! sudo -v >/dev/null 2>&1; then
+if [[ ${EUID:-$(id -u)} -ne 0 ]] && ! sudo -n true >/dev/null 2>&1; then
   echo "Skipping apt installs; no sudo/root access"
   exit 0
 fi
@@ -17,7 +17,7 @@ apt_install() {
   if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
     apt-get "$@"
   else
-    sudo apt-get "$@"
+    sudo -n apt-get "$@"
   fi
 }
 

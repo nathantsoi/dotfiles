@@ -14,8 +14,6 @@ echo
 echo "Script syntax"
 bash -n \
   "$DOTFILES_ROOT/script/setup" \
-  "$DOTFILES_ROOT/script/bootstrap" \
-  "$DOTFILES_ROOT/script/install" \
   "$DOTFILES_ROOT/script/deferred-report" \
   "$DOTFILES_ROOT/script/deferred.lib" \
   "$DOTFILES_ROOT/debian/install.sh" \

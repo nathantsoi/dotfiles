@@ -12,8 +12,8 @@ case "$(uname -s)" in
     if command -v apt-get >/dev/null 2>&1; then
       if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
         apt-get install -y watchman || true
-      elif sudo -v >/dev/null 2>&1; then
-        sudo apt-get install -y watchman || true
+      elif sudo -n true >/dev/null 2>&1; then
+        sudo -n apt-get install -y watchman || true
       fi
     fi
     ;;

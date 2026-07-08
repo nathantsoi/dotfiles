@@ -13,6 +13,8 @@ if [[ ! -f "$HOME/.vim/autoload/plug.vim" ]]; then
     https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
 fi
 
-# PlugInstall paints a full-screen UI. Without a TTY, vim still writes cursor
-# motion and redraw escapes to stdout and breaks the calling terminal layout.
-vim '+PlugInstall --sync' +qall! </dev/null >/dev/null
+# PlugInstall paints a full-screen UI. Run vim in silent batch ex mode (-es)
+# with all fds detached so it can't emit cursor-motion/redraw escapes (or the
+# "Input is not from a terminal" warning) to the tty — those scramble the
+# calling terminal's layout and interleave setup's later output on screen.
+vim -es '+PlugInstall --sync' '+qall!' </dev/null >/dev/null 2>&1 || true

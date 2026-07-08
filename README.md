@@ -18,8 +18,6 @@ Without sudo, setup also makes Zsh the effective shell: it installs zsh into the
 
 `script/setup` installs system dependencies, sets up fzf integration, creates dotfile symlinks, runs topic-specific installers (Vim plugins, and similar), and attempts to set Zsh as the login shell.
 
-`script/bootstrap` and `script/install` still work but delegate to `script/setup`.
-
 Use `script/doctor` after setup to validate the shell, prompt, and installed tools, and to review any deferred items.
 
 ## Supported Systems
@@ -115,4 +113,3 @@ script/setup
 - `topic/*.zsh`: shell configuration loaded by Zsh
 - `topic/*.symlink`: linked to `~/.$name`
 - `script/setup`: full install (packages, symlinks, shell setup, topic installers)
-- `script/bootstrap`, `script/install`: deprecated wrappers around `script/setup`
