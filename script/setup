@@ -533,6 +533,21 @@ install_user_local_tools() {
   fi
 }
 
+# Claude Code CLI (~/.local/bin/claude), used by the `lclaude` wrapper. The
+# official installer is user-local and needs no root, so this works in both
+# install modes. Skipped silently if `claude` is already on PATH.
+install_claude_code() {
+  have curl || return 0
+  if have claude; then return 0; fi
+
+  info "installing claude (user-local)"
+  if curl -fsSL https://claude.ai/install.sh | bash >/dev/null 2>&1; then
+    success "claude installed to ~/.local/bin/claude"
+  else
+    defer "user-local" "claude" "install script failed" "curl -fsSL https://claude.ai/install.sh | bash"
+  fi
+}
+
 # Resolve the browser_download_url of the latest release asset whose name
 # contains <asset_substr>. Prints the URL on stdout; returns non-zero on failure.
 resolve_asset_url() {
@@ -690,7 +705,14 @@ install_python_tools() {
   # Bootstrap pipx without sudo when possible (pipx wraps user-venv CLIs).
   if ! have pipx && have python3 && python3 -m pip --version >/dev/null 2>&1; then
     info "bootstrapping pipx (user install)"
-    python3 -m pip install --user --upgrade pipx >/dev/null 2>&1 || true
+    # Ubuntu 24.04+ blocks `pip install --user` via PEP 668
+    # (externally-managed-environment). --break-system-packages is the
+    # user-local override: it still installs to ~/.local, never touching the
+    # system site-packages, so it is safe here. Without it pipx never lands and
+    # powerline/uv/yt-dlp/httpie all stay deferred.
+    python3 -m pip install --user --upgrade pipx >/dev/null 2>&1 \
+      || python3 -m pip install --user --upgrade --break-system-packages pipx >/dev/null 2>&1 \
+      || true
   fi
 
   if have pipx; then
@@ -724,7 +746,7 @@ install_python_tools() {
     fi
   else
     warn "pipx unavailable; skipping Python CLI tools"
-    defer "python" "pipx" "not installed" "python3 -m pip install --user pipx  (or: sudo apt-get install -y pipx)"
+    defer "python" "pipx" "not installed" "python3 -m pip install --user --break-system-packages pipx  (or: sudo apt-get install -y pipx)"
   fi
 }
 
@@ -1046,6 +1068,7 @@ main() {
   install_linux_nvm
   install_linux_miniforge
   install_user_local_tools
+  install_claude_code
   install_user_local_zsh
   defer_missing_linux_tools
   setup_gitconfig
