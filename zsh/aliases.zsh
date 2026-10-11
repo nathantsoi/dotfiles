@@ -201,4 +201,3 @@ function python3d() { python3 -m pdb -c continue $1 }
 
 # lclaude models
 alias glm53flash='lclaude --model glm-5.3-flash --base-url http://10.2.0.85:8002 --window 1048576'
-
