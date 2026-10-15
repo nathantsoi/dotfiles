@@ -56,6 +56,7 @@ have() {
 HAS_SUDO=false
 CAN_APT=false
 INSTALL_MODE=""   # "sudo" | "user"
+MODE_EXPLICIT=false # true when the mode came from $DOTFILES_INSTALL_MODE
 MODE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/dotfiles/install-mode"
 
 detect_privileges() {
@@ -84,7 +85,7 @@ resolve_install_mode() {
 
   if [[ -n "${DOTFILES_INSTALL_MODE:-}" ]]; then
     case "$DOTFILES_INSTALL_MODE" in
-      sudo|user) mode="$DOTFILES_INSTALL_MODE" ;;
+      sudo|user) mode="$DOTFILES_INSTALL_MODE"; MODE_EXPLICIT=true ;;
       *) warn "ignoring invalid DOTFILES_INSTALL_MODE='$DOTFILES_INSTALL_MODE' (want: sudo|user)" ;;
     esac
   fi
@@ -140,6 +141,31 @@ run_as_root() {
   else
     sudo -n "$@"
   fi
+}
+
+# The common fresh-machine accident is wanting a sudo install but running
+# setup without valid cached credentials, which quietly lands in 'user' mode
+# and defers all system packages. Confirm a no-root install before doing any
+# work; a sudo install (or an explicit DOTFILES_INSTALL_MODE override) is
+# unambiguous and proceeds without prompting. Non-interactive runs proceed
+# like other defaults in this script.
+confirm_install_mode() {
+  [[ "$INSTALL_MODE" == "user" ]] || return 0
+  [[ "$MODE_EXPLICIT" == true ]] && return 0
+  [[ -t 0 ]] || return 0
+
+  local answer
+  user "No sudo detected: continue with a user-local install? (Homebrew and system packages will be deferred) [y/N]"
+  read -r -n 1 answer
+  printf "\n"
+  case "$answer" in
+    y|Y) return 0 ;;
+    *)
+      echo
+      info "aborted; for a sudo install run: sudo -v && script/setup"
+      exit 1
+      ;;
+  esac
 }
 
 apt_install_one() {
@@ -1089,6 +1115,8 @@ main() {
   else
     info "install mode: user-local (no sudo; system packages deferred where needed)"
   fi
+
+  confirm_install_mode
 
   case "$OS" in
     Darwin) install_macos_packages ;;
