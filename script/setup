@@ -80,6 +80,7 @@ detect_privileges() {
 # "sudo" mode sudo is required (the run aborts if it is unavailable).
 resolve_install_mode() {
   local mode=""
+  local from_file=false
 
   if [[ -n "${DOTFILES_INSTALL_MODE:-}" ]]; then
     case "$DOTFILES_INSTALL_MODE" in
@@ -91,7 +92,7 @@ resolve_install_mode() {
   if [[ -z "$mode" && -s "$MODE_FILE" ]]; then
     mode="$(cat "$MODE_FILE" 2>/dev/null || true)"
     case "$mode" in
-      sudo|user) ;;
+      sudo|user) from_file=true ;;
       *) mode="" ;;
     esac
   fi
@@ -115,6 +116,19 @@ resolve_install_mode() {
   else
     # user mode: never use sudo even if available, to keep the install
     # consistent with the original no-root setup.
+    if [[ -n "${DOTFILES_INSTALL_MODE:-}" ]]; then
+      : # explicit user override; the user knows what they asked for
+    elif [[ "$HAS_SUDO" == true ]]; then
+      # Sticky 'user' mode silently ignoring available sudo is hard to notice:
+      # setup prints "no sudo" and defers brew packages even though `sudo -v`
+      # was just run. Say so, with the way out.
+      warn "sudo is available, but the recorded install mode is 'user-local'; staying user-local"
+      warn "for a sudo install instead: DOTFILES_INSTALL_MODE=sudo script/setup (or delete $MODE_FILE)"
+    elif [[ "$from_file" == false ]] && have sudo; then
+      # First run with a sudo binary present but no cached credentials — the
+      # common fresh-machine case of forgetting `sudo -v` (or it expiring).
+      warn "no cached sudo credentials; if you wanted a sudo install: sudo -v && script/setup"
+    fi
     HAS_SUDO=false
     CAN_APT=false
   fi
@@ -161,6 +175,19 @@ install_homebrew() {
 }
 
 install_macos_packages() {
+  # A prefix owned by root (from a previous `sudo script/setup` / `sudo brew`
+  # run) makes every later brew install fail with "permission denied" no
+  # matter what sudo credentials are cached. Catch it before the confusing
+  # failure and point at the fix.
+  if have brew; then
+    local brew_prefix
+    brew_prefix="$(brew --prefix 2>/dev/null || true)"
+    if [[ -n "$brew_prefix" && -d "$brew_prefix" && ! -O "$brew_prefix" ]]; then
+      warn "Homebrew prefix $brew_prefix is not owned by $(whoami) (likely created by a sudo run)"
+      warn "fix ownership first: sudo chown -R \"\$(whoami)\":staff $brew_prefix"
+    fi
+  fi
+
   if ! have brew; then
     install_homebrew || true
   fi
@@ -1041,6 +1068,14 @@ install_topic_installers() {
 
 main() {
   cd "$DOTFILES_ROOT"
+
+  # On macOS a root run makes /opt/homebrew and $HOME files root-owned, so
+  # every later brew install and font copy fails with permission denied. The
+  # supported flow is 'sudo -v' (cache credentials) then run as your user.
+  if [[ "$OS" == "Darwin" && "${EUID:-$(id -u)}" -eq 0 ]]; then
+    fail "don't run script/setup with sudo on macOS. Run 'sudo -v' first, then 'script/setup' as your user. (If a previous sudo run left root-owned files, fix with: sudo chown -R \"\$(whoami)\":staff /opt/homebrew \"\$HOME/Library/Fonts\" \"\$HOME/.local\")"
+  fi
+
   detect_privileges
   resolve_install_mode
   defer_init
