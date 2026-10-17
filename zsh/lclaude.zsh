@@ -46,7 +46,8 @@ function lclaude() {
 
   export ANTHROPIC_BASE_URL="$base_url"
   export ANTHROPIC_API_KEY="any-value"
-  export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$window"
+  export CLAUDE_CODE_MAX_CONTEXT_TOKENS="$window"
+  export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$(( window > 1000000 ? 1000000 : window ))"
   export CLAUDE_AUTOCOMPACT_PCT_OVERRIDE="90"
   export ANTHROPIC_MODEL="$model"
   export ANTHROPIC_DEFAULT_MODEL="$model"
