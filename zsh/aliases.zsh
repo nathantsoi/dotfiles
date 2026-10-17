@@ -200,10 +200,13 @@ function fixcisco() { sudo launchctl load /Library/LaunchDaemons/com.cisco.anyco
 function python3d() { python3 -m pdb -c continue $1 }
 
 # lclaude models
-# optional arg: node hosting the glm-5.3-flash server (default: c101-005)
+# optional arg: node hosting the glm-5.3-flash server (default: proxy 10.2.0.85:8002)
 glm53flash() {
-  local node="${1:-c101-005}"
-  lclaude --model glm-5.3-flash --base-url "http://${node}:8000" --window 1048576
+  local url="http://10.2.0.85:8002"
+  if [[ -n "$1" ]]; then
+    url="http://${1}:8000"
+  fi
+  lclaude --model glm-5.3-flash --base-url "$url" --window 1048576
 }
 
 # look up the node running glm53 via squeue, then connect to it
