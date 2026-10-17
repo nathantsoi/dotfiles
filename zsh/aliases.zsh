@@ -200,4 +200,20 @@ function fixcisco() { sudo launchctl load /Library/LaunchDaemons/com.cisco.anyco
 function python3d() { python3 -m pdb -c continue $1 }
 
 # lclaude models
-alias glm53flash='lclaude --model glm-5.3-flash --base-url http://10.2.0.85:8002 --window 1048576'
+# optional arg: node hosting the glm-5.3-flash server (default: c101-005)
+glm53flash() {
+  local node="${1:-c101-005}"
+  lclaude --model glm-5.3-flash --base-url "http://${node}:8000" --window 1048576
+}
+
+# look up the node running glm53 via squeue, then connect to it
+hglm53flash() {
+  local node
+  node=$(squeue --me -h -t RUNNING -o '%j %N' | awk '$1 ~ /glm53/ {print $2; exit}')
+  if [[ -z "$node" ]]; then
+    echo "hglm53flash: no running glm53 job found" >&2
+    return 1
+  fi
+  echo "glm53 running on ${node}"
+  glm53flash "$node"
+}
