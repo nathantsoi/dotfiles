@@ -209,6 +209,24 @@ glm53flash() {
   lclaude --model glm-5.3-flash --base-url "$url" --window 1048576
 }
 
+# optional arg: node hosting the  server (default: proxy 10.2.0.85:8003)
+glm53flashabliterated() {
+  local url="http://10.2.0.85:8003"
+  if [[ -n "$1" ]]; then
+    url="http://${1}:8000"
+  fi
+  lclaude --model huihui-glm-5.3-flash-abliterated --base-url "$url" --window 262144
+}
+
+# optional arg: node hosting the  server (default: proxy 10.2.0.85:8003)
+qwen38abliterated() {
+  local url="http://10.2.0.85:8003"
+  if [[ -n "$1" ]]; then
+    url="http://${1}:8000"
+  fi
+  lclaude --model huihui-qwen3.8-27b-abliterated --base-url "$url" --window 262144 
+}
+
 # look up the node running glm53 via squeue, then connect to it
 hglm53flash() {
   local node
