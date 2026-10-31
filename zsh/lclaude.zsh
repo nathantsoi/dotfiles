@@ -33,16 +33,18 @@ function lclaude() {
         fi
         model="$2"; shift 2 ;;
       --help|-h)
-        print -r -- "Usage: lclaude [--window N] [--base-url URL] [--model MODEL]"
+        print -r -- "Usage: lclaude [--window N] [--base-url URL] [--model MODEL] [claude args...]"
         print -r -- "  --window N     CLAUDE_CODE_AUTO_COMPACT_WINDOW (default 1048576)"
         print -r -- "  --base-url URL ANTHROPIC_BASE_URL (default http://10.1.0.116:11434)"
         print -r -- "  --model MODEL  ANTHROPIC_MODEL (default qwen3-coder-next:q8_0)"
+        print -r -- "  any other args are passed through to claude"
         return 0 ;;
       *)
-        print -r -- "lclaude: unknown option: $1" >&2
-        return 2 ;;
+        break ;;
     esac
   done
+
+  # anything left is passed through to claude (e.g. --resume <id>, --continue)
 
   export ANTHROPIC_BASE_URL="$base_url"
   export ANTHROPIC_API_KEY="any-value"
@@ -55,5 +57,5 @@ function lclaude() {
   export ANTHROPIC_THINKING_MODEL="$model"
   export CLAUDE_NO_TELEMETRY="1"
 
-  claude --dangerously-skip-permissions
+  claude --dangerously-skip-permissions "$@"
 }

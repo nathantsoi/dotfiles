@@ -203,10 +203,11 @@ function python3d() { python3 -m pdb -c continue $1 }
 # optional arg: node hosting the glm-5.3-flash server (default: proxy 10.2.0.85:8002)
 glm53flash() {
   local url="http://10.2.0.85:8002"
-  if [[ -n "$1" ]]; then
+  if [[ "$1" != -* && -n "$1" ]]; then
     url="http://${1}:8000"
+    shift
   fi
-  lclaude --model glm-5.3-flash --base-url "$url" --window 1048576
+  lclaude --model glm-5.3-flash --base-url "$url" --window 1048576 "$@"
 }
 
 # optional arg: node hosting the  server (default: proxy 10.2.0.85:8003)
