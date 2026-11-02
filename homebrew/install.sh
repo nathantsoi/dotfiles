@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
 #
-# Homebrew package installation is handled by script/setup.
+# Homebrew package installation. Shared-prefix aware: when the Homebrew prefix
+# is owned by another user, brew runs via `sudo -n -H -u <owner>` and the
+# prefix's permissions are never changed (see script/brew.lib).
 
 set -euo pipefail
+
+DOTFILES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 0
 fi
 
-if ! command -v brew >/dev/null 2>&1; then
-  echo "Homebrew is not installed; run script/setup first" >&2
+# shellcheck source=../script/brew.lib
+source "$DOTFILES_ROOT/script/brew.lib"
+
+if ! setup_brew; then
+  echo "Homebrew is not usable (not installed, root-owned prefix, or a shared prefix without sudo); run script/setup first" >&2
   exit 0
 fi
 

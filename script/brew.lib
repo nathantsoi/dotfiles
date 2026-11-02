@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+#
+# Shared-Homebrew support for script/setup and homebrew/install.sh.
+#
+# Some machines run one Homebrew prefix that belongs to a dedicated user, with
+# `brew` aliased in the interactive shell to:
+#
+#   sudo -H -u <owner> /opt/homebrew/bin/brew "$@"
+#
+# script/setup runs in bash and cannot see zsh aliases, so the shared setup is
+# detected by ownership instead: when the Homebrew prefix is owned by a
+# different (non-root) user, every brew call in the install is routed through
+# `sudo -n -H -u <owner>` via a `brew` function exported to child scripts (the
+# topic installers). The prefix is never chowned and Homebrew is never
+# installed over it — the point of a shared install is that its permissions
+# stay alone.
+#
+# After setup_brew() returns 0, callers just invoke `brew ...` normally.
+
+BREW_USER=""   # owning user of a shared prefix; empty for a normal install
+BREW_BIN=""    # absolute path to the real brew executable
+
+# brew.lib is sourced by script/setup (which defines info/warn) and by topic
+# installers (which may not), so fall back to plain equivalents.
+if ! declare -F info >/dev/null 2>&1; then
+  info() { printf "  [ .. ] %s\n" "$1"; }
+fi
+if ! declare -F warn >/dev/null 2>&1; then
+  warn() { printf "  [ !! ] %s\n" "$1"; }
+fi
+
+# The directory whose owner administers this install: the prefix itself on ARM
+# (/opt/homebrew), but the Homebrew repo dir on Intel, where /usr/local is
+# often root-owned for reasons unrelated to brew.
+brew_admin_dir() {
+  local prefix="$1"
+  if [[ -d "$prefix/Homebrew" ]]; then
+    printf '%s\n' "$prefix/Homebrew"
+  else
+    printf '%s\n' "$prefix"
+  fi
+}
+
+brew_dir_owner() {
+  local dir="$1"
+  stat -f '%Su' "$dir" 2>/dev/null || stat -c '%U' "$dir" 2>/dev/null || true
+}
+
+# Resolve how `brew` must be invoked. Returns 0 when brew is usable (directly
+# or via the exported shared-user wrapper), 1 otherwise. BREW_BIN is empty
+# afterwards only when no Homebrew exists at all.
+setup_brew() {
+  local candidate prefix admin_dir owner me
+  me="$(whoami)"
+  BREW_USER=""
+
+  # An explicit HOMEBREW_PREFIX wins (custom-prefix installs); then the
+  # standard prefix locations; then whatever is on PATH.
+  BREW_BIN=""
+  if [[ -n "${HOMEBREW_PREFIX:-}" && -x "$HOMEBREW_PREFIX/bin/brew" ]]; then
+    BREW_BIN="$HOMEBREW_PREFIX/bin/brew"
+  else
+    for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+      if [[ -x "$candidate" ]]; then
+        BREW_BIN="$candidate"
+        break
+      fi
+    done
+  fi
+  if [[ -z "$BREW_BIN" ]]; then
+    BREW_BIN="$(command -v brew 2>/dev/null || true)"
+  fi
+  [[ -n "$BREW_BIN" ]] || return 1
+
+  prefix="$(cd "$(dirname "$BREW_BIN")/.." && pwd)"
+  admin_dir="$(brew_admin_dir "$prefix")"
+  owner="$(brew_dir_owner "$admin_dir")"
+
+  # A root-owned prefix is a broken earlier `sudo brew`/`sudo script/setup`
+  # run, not a shared install: point at the chown fix instead of wrapping.
+  if [[ "$owner" == "root" ]]; then
+    warn "Homebrew prefix $prefix is owned by root (likely created by a sudo run)"
+    warn "fix ownership first: sudo chown -R \"\$(whoami)\":staff $prefix"
+    return 1
+  fi
+
+  if [[ "$owner" != "$me" ]]; then
+    # Shared install owned by another user: mirror the interactive alias
+    # (`sudo -H -u <owner> brew`) rather than touching the prefix's
+    # permissions. Running as root needs no sudo binary/credentials.
+    if [[ "${HAS_SUDO:-false}" != true && "$me" != "root" ]]; then
+      warn "shared Homebrew prefix $prefix is owned by '$owner', but no sudo is available to run brew as them"
+      warn "brew packages deferred; run 'sudo -v' first (or: DOTFILES_INSTALL_MODE=sudo script/setup)"
+      return 1
+    fi
+
+    info "shared Homebrew prefix $prefix owned by '$owner'; running brew via sudo -H -u $owner"
+    BREW_USER="$owner"
+    brew() { sudo -n -H -u "$BREW_USER" "$BREW_BIN" "$@"; }
+    export -f brew
+
+    # -H is what makes the shared install work: brew then uses the owner's
+    # HOME for its cache/logs. Verify the wrapper actually runs before
+    # trusting it for the rest of the install.
+    if ! brew --version >/dev/null 2>&1; then
+      warn "could not run brew as '$owner' via sudo; brew packages deferred"
+      BREW_USER=""
+      return 1
+    fi
+  fi
+
+  # Both paths need the formula bin dirs (zsh, git, ...) on PATH for the
+  # shell/shim steps later in setup. shellenv only prints env assignments, so
+  # it is safe to run the real binary as the current user even when shared.
+  eval "$("$BREW_BIN" shellenv)"
+  return 0
+}

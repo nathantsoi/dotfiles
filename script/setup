@@ -19,6 +19,12 @@ OS="$(uname -s)"
 # shellcheck source=deferred.lib
 source "$DOTFILES_ROOT/script/deferred.lib"
 
+# Shared-Homebrew detection and the `brew` wrapper (see brew.lib header):
+# on a machine whose Homebrew prefix is owned by another user, brew calls run
+# via `sudo -n -H -u <owner>` and the prefix's permissions are never touched.
+# shellcheck source=brew.lib
+source "$DOTFILES_ROOT/script/brew.lib"
+
 # Setup runs in bash, not zsh, so the user-local bin dir that zshrc adds to PATH
 # isn't loaded. Prepend it so `have` checks see tools we install there (static
 # binaries) and pipx-managed CLIs (powerline, httpie, uv, yt-dlp, ...).
@@ -179,17 +185,19 @@ apt_install_one() {
 }
 
 install_homebrew() {
-  if have brew; then
-    return 0
-  fi
-
+  # Only reached when no Homebrew prefix exists at all (setup_brew left
+  # BREW_BIN empty); a shared prefix owned by another user is never installed
+  # over — see script/brew.lib.
   if [[ "$HAS_SUDO" != true ]]; then
     warn "Homebrew not installed and no sudo available; skipping (brew packages deferred)"
     return 1
   fi
 
   info "installing Homebrew"
-  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  if ! NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; then
+    warn "Homebrew install failed; brew packages deferred"
+    return 1
+  fi
 
   if [[ -x /opt/homebrew/bin/brew ]]; then
     eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -197,28 +205,24 @@ install_homebrew() {
     eval "$(/usr/local/bin/brew shellenv)"
   fi
 
-  have brew || fail "Homebrew installed, but brew is not on PATH"
+  have brew || { warn "Homebrew installed, but brew is not on PATH"; return 1; }
 }
 
 install_macos_packages() {
-  # A prefix owned by root (from a previous `sudo script/setup` / `sudo brew`
-  # run) makes every later brew install fail with "permission denied" no
-  # matter what sudo credentials are cached. Catch it before the confusing
-  # failure and point at the fix.
-  if have brew; then
-    local brew_prefix
-    brew_prefix="$(brew --prefix 2>/dev/null || true)"
-    if [[ -n "$brew_prefix" && -d "$brew_prefix" && ! -O "$brew_prefix" ]]; then
-      warn "Homebrew prefix $brew_prefix is not owned by $(whoami) (likely created by a sudo run)"
-      warn "fix ownership first: sudo chown -R \"\$(whoami)\":staff $brew_prefix"
+  local brew_ready=false
+  if setup_brew; then
+    brew_ready=true
+  elif [[ -z "$BREW_BIN" ]]; then
+    # No Homebrew prefix exists, so install one. Other setup_brew failures
+    # (root-owned prefix, shared prefix without sudo) already warned; their
+    # packages are deferred below instead of aborting the run.
+    install_homebrew || true
+    if setup_brew; then
+      brew_ready=true
     fi
   fi
 
-  if ! have brew; then
-    install_homebrew || true
-  fi
-
-  if ! have brew; then
+  if [[ "$brew_ready" != true ]]; then
     warn "Homebrew unavailable; deferring brew packages"
     defer_macos_tools
     return
@@ -1100,6 +1104,14 @@ main() {
   # supported flow is 'sudo -v' (cache credentials) then run as your user.
   if [[ "$OS" == "Darwin" && "${EUID:-$(id -u)}" -eq 0 ]]; then
     fail "don't run script/setup with sudo on macOS. Run 'sudo -v' first, then 'script/setup' as your user. (If a previous sudo run left root-owned files, fix with: sudo chown -R \"\$(whoami)\":staff /opt/homebrew \"\$HOME/Library/Fonts\" \"\$HOME/.local\")"
+  fi
+
+  # Same for `sudo -H -u <other-user> script/setup`: it would symlink into the
+  # other user's home. A shared Homebrew prefix needs no such run — setup
+  # detects it by ownership and routes brew through `sudo -H -u <owner>` itself
+  # (see script/brew.lib).
+  if [[ "$OS" == "Darwin" && -n "${SUDO_USER:-}" && "${SUDO_USER:-}" != "$(whoami)" ]]; then
+    fail "don't run script/setup as another user via sudo on macOS. Run it as '$SUDO_USER' directly; a shared Homebrew prefix is detected and used automatically (brew runs via sudo -H -u as its owner)."
   fi
 
   detect_privileges

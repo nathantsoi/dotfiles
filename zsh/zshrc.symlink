@@ -329,6 +329,10 @@ path_prepend_if_exists "$HOME/.antigravity-ide/antigravity-ide/bin"
 [[ -t 0 && -f ~/.fzf.zsh ]] && source ~/.fzf.zsh
 export UE_ROOT="/Users/Shared/Epic Games/UE_5.8"
 
+# Secrets (tokens etc.) live in the gitignored zsh/user-config.zsh.local,
+# sourced at the top of this file. Example entry:
+#   export HF_TOKEN=hf_xxx
+
 # Ensure PATH contains only absolute, non-empty directories
 typeset -U path PATH
 path=(${(M)path:#/*})

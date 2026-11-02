@@ -1,5 +1,11 @@
 # Local User Configuration Example
 # Copy this file to user-config.zsh.local and customize for your setup
+#
+# This file is gitignored — keep secrets (tokens, keys) here, never in
+# tracked files.
+
+# Secrets
+# export HF_TOKEN="hf_xxx"   # huggingface
 
 # Username for deployment and backup operations
 export DOTFILES_USER="${USER:-$(whoami)}"
