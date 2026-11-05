@@ -338,3 +338,7 @@ typeset -U path PATH
 path=(${(M)path:#/*})
 export PATH
 
+
+
+# Added by Antigravity CLI installer
+export PATH="/home/ntsoi/.local/bin:$PATH"

@@ -228,6 +228,15 @@ qwen38abliterated() {
   lclaude --model huihui-qwen3.8-27b-abliterated --base-url "$url" --window 262144 
 }
 
+# optional arg: node hosting the  server (default: proxy 10.2.0.85:8003)
+kimi31pro() {
+  local url="http://10.0.0.1:8004"
+  if [[ -n "$1" ]]; then
+    url="http://${1}:8000"
+  fi
+  lclaude --model kimi-k3.1-pro --base-url "$url" --window 262144 
+}
+
 # look up the node running glm53 via squeue, then connect to it
 hglm53flash() {
   local node
