@@ -21,7 +21,12 @@ elif command -v python3 >/dev/null 2>&1; then
   export PATH="${USER_BASE}/bin:$PATH"
 fi
 
-if [[ -n "${POWERLINE_BINDINGS_DIR:-}" && -f "$POWERLINE_BINDINGS_DIR/zsh/powerline.zsh" ]]; then
+# The binding invokes powerline-config during startup. A previously interrupted
+# pip/pipx install can leave the Python files in place without that launcher;
+# retain the native prompt instead of printing startup errors in that case.
+if [[ -n "${POWERLINE_BINDINGS_DIR:-}" && -f "$POWERLINE_BINDINGS_DIR/zsh/powerline.zsh" ]] \
+  && [[ -n "${POWERLINE_CONFIG_COMMAND:-}" ]] \
+  && command -v "$POWERLINE_CONFIG_COMMAND" >/dev/null 2>&1; then
   source "$POWERLINE_BINDINGS_DIR/zsh/powerline.zsh"
   DOTFILES_PROMPT_MODE=powerline-status
 elif [[ -z "${DOTFILES_PROMPT_MODE:-}" ]]; then

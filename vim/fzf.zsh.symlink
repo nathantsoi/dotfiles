@@ -1,7 +1,26 @@
 # Setup fzf
 # ---------
-if [[ ! "$PATH" == */home1/11159/ntsoi/.fzf/bin* ]]; then
-  PATH="${PATH:+${PATH}:}/home1/11159/ntsoi/.fzf/bin"
+# Prefer the user-local checkout installed by fzf/install.sh, then fall back to
+# another fzf on PATH. Never embed a machine-specific home directory here.
+typeset _dotfiles_fzf_bin="" _dotfiles_fzf_candidate _dotfiles_fzf_bindir
+for _dotfiles_fzf_candidate in \
+  "$HOME/.fzf/bin/fzf" \
+  "$HOME/.local/bin/fzf" \
+  ${commands[fzf]:-}; do
+  [[ -n "$_dotfiles_fzf_candidate" && -x "$_dotfiles_fzf_candidate" ]] || continue
+  if "$_dotfiles_fzf_candidate" --zsh >/dev/null 2>&1; then
+    _dotfiles_fzf_bin="$_dotfiles_fzf_candidate"
+    break
+  fi
+done
+
+if [[ -n "$_dotfiles_fzf_bin" ]]; then
+  _dotfiles_fzf_bindir="${_dotfiles_fzf_bin:h}"
+  if [[ ":$PATH:" != *":$_dotfiles_fzf_bindir:"* ]]; then
+    PATH="$_dotfiles_fzf_bindir${PATH:+:$PATH}"
+    export PATH
+  fi
+  source <("$_dotfiles_fzf_bin" --zsh)
 fi
 
-source <(fzf --zsh)
+unset _dotfiles_fzf_bin _dotfiles_fzf_candidate _dotfiles_fzf_bindir

@@ -3,6 +3,10 @@
 set -euo pipefail
 
 DOTFILES_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../script/pipx.lib
+source "$DOTFILES_ROOT/script/pipx.lib"
+
+powerline_in_pipx=false
 
 if command -v pipx >/dev/null 2>&1; then
   pipx ensurepath --force >/dev/null 2>&1 || true
@@ -28,13 +32,24 @@ if command -v pipx >/dev/null 2>&1; then
   done
 
   if pipx list --short 2>/dev/null | grep -Eq "^powerline-status([[:space:]]|$)"; then
-    :
+    powerline_in_pipx=true
   elif [[ -n "$powerline_python" ]]; then
-    pipx install powerline-status --python "$powerline_python" || true
+    if dotfiles_pipx install powerline-status --python "$powerline_python"; then
+      powerline_in_pipx=true
+    else
+      printf 'warning: pipx could not install powerline-status; trying pip --user\n' >&2
+    fi
+  elif dotfiles_pipx install powerline-status; then
+    powerline_in_pipx=true
   else
-    pipx install powerline-status || true
+    printf 'warning: pipx could not install powerline-status; trying pip --user\n' >&2
   fi
-  pipx inject powerline-status powerline-gitstatus >/dev/null 2>&1 || true
+
+  if [[ "$powerline_in_pipx" == true ]]; then
+    if ! dotfiles_pipx inject powerline-status powerline-gitstatus >/dev/null 2>&1; then
+      printf 'warning: could not install optional powerline-gitstatus support\n' >&2
+    fi
+  fi
 
   # pipx only (re)creates the ~/.local/bin app symlinks during `pipx install`,
   # so an already-installed package left without symlinks (e.g. after we
@@ -56,13 +71,26 @@ if command -v pipx >/dev/null 2>&1; then
       fi
     done
   fi
-elif command -v pip3 >/dev/null 2>&1; then
+fi
+
+# No pipx, or its installation failed: use the user site instead. If an earlier
+# partial install left the Python package without its launchers, a plain pip
+# install would only report "already satisfied"; force that case to repair them.
+if [[ "$powerline_in_pipx" != true ]] && command -v pip3 >/dev/null 2>&1; then
+  pip_user_base="$(python3 -m site --user-base 2>/dev/null || printf '%s' "$HOME/.local")"
+  reinstall_args=()
+  if [[ ! -x "$pip_user_base/bin/powerline-config" ]]; then
+    reinstall_args=(--force-reinstall)
+  fi
+
   # PEP 668 (Ubuntu 24.04+) blocks plain `pip install --user` with
   # externally-managed-environment. Fall back to --break-system-packages, which
   # still targets the user site (~/.local) and never touches system packages.
   # Powerline is pure Python, so a user install is safe.
-  pip3 install --user powerline-status powerline-gitstatus 2>/dev/null \
-    || pip3 install --user --break-system-packages powerline-status powerline-gitstatus || true
+  if ! pip3 install --user "${reinstall_args[@]}" powerline-status powerline-gitstatus 2>/dev/null \
+    && ! pip3 install --user --break-system-packages "${reinstall_args[@]}" powerline-status powerline-gitstatus; then
+    printf 'warning: could not install powerline-status with pipx or pip --user\n' >&2
+  fi
 fi
 
 CONFIGDIR="${XDG_CONFIG_HOME:-$HOME/.config}"

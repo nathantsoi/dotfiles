@@ -120,6 +120,11 @@ fi
 plugins=(rails git ruby osx rake brew adb tmux tmuxinator z colored-man-pages)
 export ZSH=$HOME/.dotfiles/zsh/oh-my-zsh
 ZSH_DISABLE_COMPFIX="true"
+# The z plugin reads its data file while recording the first visited directory.
+# Create it up front so a fresh install does not emit a first-cd error.
+if [[ ! -e "${_Z_DATA:-$HOME/.z}" ]]; then
+  : > "${_Z_DATA:-$HOME/.z}"
+fi
 source $ZSH/oh-my-zsh.sh
 
 # shortcut to this dotfiles path is $ZSH

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#
+# Run pipx operations with a backend that works on every supported host.
+# Recent pipx releases auto-select uv whenever it is on PATH, then abort if an
+# older, pre-existing uv does not meet pipx's minimum version. Explicitly use
+# pip when the installed pipx supports backend selection; older pipx releases
+# predate the uv auto-selection behavior and need no flag.
+
+dotfiles_pipx() {
+  local operation="$1"
+  shift
+
+  local -a backend_args=()
+  case "$operation" in
+    install|inject)
+      if pipx "$operation" --help 2>/dev/null | grep -q -- '--backend'; then
+        backend_args=(--backend pip)
+      fi
+      ;;
+  esac
+
+  command pipx "$operation" "${backend_args[@]}" "$@"
+}

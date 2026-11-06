@@ -18,6 +18,8 @@ OS="$(uname -s)"
 
 # shellcheck source=deferred.lib
 source "$DOTFILES_ROOT/script/deferred.lib"
+# shellcheck source=pipx.lib
+source "$DOTFILES_ROOT/script/pipx.lib"
 
 # Shared-Homebrew detection and the `brew` wrapper (see brew.lib header):
 # on a machine whose Homebrew prefix is owned by another user, brew calls run
@@ -583,10 +585,10 @@ install_user_local_tools() {
     fi
   fi
 
-  # httpie: pipx install if pipx is available and http is missing.
+  # httpie: install with pipx if it is available and http is missing.
   if ! have http && have pipx; then
     info "installing httpie via pipx"
-    pipx install httpie >/dev/null 2>&1 || defer "user-local" "httpie" "pipx install failed" "pipx install httpie"
+    dotfiles_pipx install httpie >/dev/null 2>&1 || defer "user-local" "httpie" "pipx install failed" "pipx install --backend pip httpie"
   fi
 }
 
@@ -786,19 +788,24 @@ install_python_tools() {
     pipx ensurepath --force >/dev/null 2>&1 || true
     if ! pipx list --short 2>/dev/null | grep -Eq "^powerline-status([[:space:]]|$)"; then
       if [[ -n "$powerline_python" ]]; then
-        pipx install powerline-status --python "$powerline_python" || true
+        dotfiles_pipx install powerline-status --python "$powerline_python" \
+          || warn "could not install powerline-status via pipx; powerline installer will retry with pip --user"
       else
-        pipx install powerline-status || true
+        dotfiles_pipx install powerline-status \
+          || warn "could not install powerline-status via pipx; powerline installer will retry with pip --user"
       fi
     fi
-    pipx inject powerline-status powerline-gitstatus >/dev/null 2>&1 || true
+    if pipx list --short 2>/dev/null | grep -Eq "^powerline-status([[:space:]]|$)"; then
+      dotfiles_pipx inject powerline-status powerline-gitstatus >/dev/null 2>&1 \
+        || warn "could not install optional powerline-gitstatus support"
+    fi
 
     if [[ "$OS" == "Linux" ]]; then
       if ! have uv; then
-        pipx install uv >/dev/null 2>&1 || true
+        dotfiles_pipx install uv >/dev/null 2>&1 || true
       fi
       if ! have yt-dlp; then
-        pipx install yt-dlp >/dev/null 2>&1 || true
+        dotfiles_pipx install yt-dlp >/dev/null 2>&1 || true
       fi
     fi
   else
@@ -821,35 +828,14 @@ install_powerline_config() {
   fi
 }
 
-fzf_supports_zsh() {
-  local fzf_bin="$1"
-  [[ -n "$fzf_bin" && -x "$fzf_bin" ]] && "$fzf_bin" --zsh >/dev/null 2>&1
-}
-
 install_fzf_integration() {
-  if [[ -x "$HOME/.fzf/bin/fzf" ]] && fzf_supports_zsh "$HOME/.fzf/bin/fzf"; then
-    success "fzf integration (~/.fzf)"
-    return
-  fi
-
-  if have fzf && fzf_supports_zsh "$(command -v fzf)"; then
-    success "fzf integration (system)"
-    return
-  fi
-
-  if [[ -d "$HOME/.fzf/.git" ]]; then
-    info "updating ~/.fzf"
-    git -C "$HOME/.fzf" pull --ff-only || true
+  # Keep installation and PATH-link repair in one place; this also runs as a
+  # topic installer later and is intentionally idempotent.
+  if bash "$DOTFILES_ROOT/fzf/install.sh"; then
+    success "fzf integration"
   else
-    info "installing ~/.fzf from upstream"
-    git clone --depth 1 https://github.com/junegunn/fzf.git "$HOME/.fzf" || {
-      warn "could not clone fzf"
-      return
-    }
+    warn "fzf installation failed; retry with: bash $DOTFILES_ROOT/fzf/install.sh"
   fi
-
-  # Dotfiles owns ~/.zshrc and ~/.fzf.zsh; do not let fzf/install overwrite them.
-  "$HOME/.fzf/install" --all --no-bash --no-fish --no-update-rc || warn "fzf install script failed"
 }
 
 # A tiny non-symlink ~/.zshrc is almost certainly a throwaway stub (fzf install
@@ -1145,14 +1131,18 @@ main() {
   install_user_local_tools
   install_claude_code
   install_user_local_zsh
+  install_fzf_integration
   defer_missing_linux_tools
   setup_gitconfig
   install_dotfiles
   ensure_dotfiles_zshrc
-  install_fzf_integration
   fix_zsh_permissions
   set_default_shell
   install_topic_installers
+
+  if ! have powerline-config; then
+    defer "python" "powerline-status" "not installed" "bash $DOTFILES_ROOT/powerline/install.sh"
+  fi
 
   echo ""
   success "setup complete"
