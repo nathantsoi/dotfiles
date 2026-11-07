@@ -234,7 +234,7 @@ kimi31pro() {
   if [[ -n "$1" ]]; then
     url="http://${1}:8000"
   fi
-  lclaude --model kimi-k3.1-pro --base-url "$url" --window 262144 
+  lclaude --model kimi-k3.1-pro --base-url "$url" --window 1048576
 }
 
 # look up the node running glm53 via squeue, then connect to it
